@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment
+.env
+
+# Large files
+*.mp4
+*.mov
+constitution.pdf
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+.DS_Store

@@ -1,0 +1,87 @@
+[
+  {
+    "id": "5895d3ca-8d9c-47aa-8fdf-d64fbb8d0a23",
+    "users": [
+      "b92e5fe7-78da-4995-aa8e-b538f46801a0",
+      "a7268f81-4102-472a-bd40-c65b129e5e81"
+    ],
+    "status": "accepted",
+    "messages": [
+      {
+        "from": "a7268f81-4102-472a-bd40-c65b129e5e81",
+        "content": "hey",
+        "timestamp": "2025-08-20T19:03:52.568Z"
+      },
+      {
+        "from": "b92e5fe7-78da-4995-aa8e-b538f46801a0",
+        "content": "hi",
+        "timestamp": "2026-01-20T13:46:21.279Z"
+      }
+    ]
+  },
+  {
+    "id": "149a0117-c328-4392-933c-f39422fa8450",
+    "users": [
+      "444bcb0b-70e4-4ec1-bdfa-82c785f15823",
+      "a7268f81-4102-472a-bd40-c65b129e5e81"
+    ],
+    "status": "accepted",
+    "messages": [
+      {
+        "from": "444bcb0b-70e4-4ec1-bdfa-82c785f15823",
+        "content": "hi",
+        "timestamp": "2025-08-24T12:15:09.704Z"
+      }
+    ]
+  },
+  {
+    "id": "451d0644-3fde-4914-8bec-338739ead422",
+    "users": [
+      "0f4a90d0-c0ca-442c-9191-c65153c8f06b",
+      "b92e5fe7-78da-4995-aa8e-b538f46801a0"
+    ],
+    "status": "accepted",
+    "messages": [
+      {
+        "from": "0f4a90d0-c0ca-442c-9191-c65153c8f06b",
+        "content": "hi",
+        "timestamp": "2026-01-15T16:48:20.746Z"
+      },
+      {
+        "from": "0f4a90d0-c0ca-442c-9191-c65153c8f06b",
+        "content": "how are you",
+        "timestamp": "2026-01-15T16:48:36.856Z"
+      },
+      {
+        "from": "b92e5fe7-78da-4995-aa8e-b538f46801a0",
+        "content": "fine",
+        "timestamp": "2026-01-15T16:51:24.031Z"
+      }
+    ]
+  },
+  {
+    "id": "e0867200-b7d2-4f44-8cab-acfe218d20b4",
+    "users": [
+      "e36fc983-bb17-43f2-8477-71be46633734",
+      "a7268f81-4102-472a-bd40-c65b129e5e81"
+    ],
+    "status": "accepted",
+    "messages": [
+      {
+        "from": "e36fc983-bb17-43f2-8477-71be46633734",
+        "content": "hi",
+        "timestamp": "2026-01-20T16:04:29.771Z"
+      },
+      {
+        "from": "a7268f81-4102-472a-bd40-c65b129e5e81",
+        "content": "hi",
+        "timestamp": "2026-01-20T16:18:45.901Z"
+      },
+      {
+        "from": "a7268f81-4102-472a-bd40-c65b129e5e81",
+        "content": "hellow",
+        "timestamp": "2026-01-20T16:20:05.186Z"
+      }
+    ]
+  }
+]

@@ -1,0 +1,135 @@
+{
+  "test@test.com": {
+    "id": "test-user-123",
+    "role": "public",
+    "email": "test@test.com",
+    "password": "$2b$12$JNmby0P3.j/krc6Bw86X3o2A42W8R72i",
+    "name": "Test User",
+    "avatar": "/default-avatar.png",
+    "bio": "",
+    "bar_code": null,
+    "followers": [],
+    "following": []
+  },
+  "ntg@mail": {
+    "id": "a7268f81-4102-472a-bd40-c65b129e5e81",
+    "role": "public",
+    "email": "ntg@mail",
+    "password": "$2b$12$dnKGLM.gwxry1wTquGPVgOs.N0B2BWh0vI89hyUq/EaKk04w.Rqz2",
+    "name": "ntg",
+    "avatar": "/uploads/avatar_ae29c091-e494-422c-817a-db62610cc016_c22b27e87278a450dbf3185520563926.jpg",
+    "bio": "",
+    "bar_code": null,
+    "followers": [
+      "e36fc983-bb17-43f2-8477-71be46633734",
+      "50f6bf11-4af8-4361-a558-31f95648222f"
+    ],
+    "following": [
+      "b92e5fe7-78da-4995-aa8e-b538f46801a0"
+    ]
+  },
+  "bk@gmail.com": {
+    "id": "b92e5fe7-78da-4995-aa8e-b538f46801a0",
+    "name": "Karthick B",
+    "email": "bk@gmail.com",
+    "password": "$2b$12$fp..9ZCRZrY.avfDctcVh.Zgq3Vh8TDcbyphfEb83xciPm/6l/UGG",
+    "role": "public",
+    "avatar": "/default-avatar.png",
+    "bio": "",
+    "bar_code": null,
+    "followers": [
+      "a7268f81-4102-472a-bd40-c65b129e5e81"
+    ],
+    "following": []
+  },
+  "ad@gmail.com": {
+    "id": "5326ef22-5bda-4f51-adcf-9768c33fe99b",
+    "name": "ram",
+    "email": "ad@gmail.com",
+    "password": "$2b$12$UrNfLtPCncTQI3pjV2wuROceqRfXSqRVkokVglZwr7bGX9riBflqi",
+    "role": "lawyer",
+    "avatar": "/default-avatar.png",
+    "bio": "",
+    "bar_code": "518",
+    "followers": [],
+    "following": [],
+    "isVerified": false
+  },
+  "yo@mail": {
+    "id": "444bcb0b-70e4-4ec1-bdfa-82c785f15823",
+    "name": "ft",
+    "email": "yo@mail",
+    "password": "$2b$12$cvBh3MVORqPl5/HeojkMcu3Eb8ANvTF2Z/LEXhqLNvDnfDXoj4x/S",
+    "role": "public",
+    "avatar": "/default-avatar.png",
+    "bio": "",
+    "bar_code": null,
+    "followers": [],
+    "following": []
+  },
+  "ntg@mail.com": {
+    "id": "0f4a90d0-c0ca-442c-9191-c65153c8f06b",
+    "name": "ntg",
+    "email": "ntg@mail.com",
+    "password": "$2b$12$pGpGS8Tq9HDFdPsFf05SMe85v/oHACB8MXqqqvL.ExzhVFiEaD.iW",
+    "role": "public",
+    "avatar": "/uploads/avatar_bcc8eb3b-248a-46f8-9542-1c070f6a61a5_Gemini_Generated_Image_fc3hzffc3hzffc3h.png",
+    "bio": "",
+    "bar_code": null,
+    "followers": [],
+    "following": []
+  },
+  "karthick@mail": {
+    "id": "e36fc983-bb17-43f2-8477-71be46633734",
+    "name": "123",
+    "email": "karthick@mail",
+    "password": "$2b$12$VeYloFb6Z8dpIA3Qw1FrJegF.vs/lbMp7oX9o/hT9OMTQH7XOJdCa",
+    "role": "public",
+    "avatar": "/uploads/avatar_24be30e5-454a-4895-884e-171f87e002da_channels4_profile.jpg",
+    "bio": "",
+    "bar_code": null,
+    "followers": [],
+    "following": [
+      "a7268f81-4102-472a-bd40-c65b129e5e81"
+    ]
+  },
+  "arun@mail": {
+    "id": "50f6bf11-4af8-4361-a558-31f95648222f",
+    "name": "arun",
+    "email": "arun@mail",
+    "password": "$2b$12$ZURxlgpDytQ2EKxnqVtGke.i5lP3mQYlB4YVvRAOCvWi4DGWDdgey",
+    "role": "public",
+    "avatar": "/default-avatar.png",
+    "bio": "",
+    "bar_code": null,
+    "followers": [],
+    "following": [
+      "a7268f81-4102-472a-bd40-c65b129e5e81"
+    ]
+  },
+  "admin@legal.com": {
+    "id": "admin-super-user",
+    "name": "Legal Admin",
+    "email": "admin@legal.com",
+    "password": "$2b$12$RFXM7iTEs9f0SRHdQZcatuQszlQkqTO1K1DbXGxU7yjYlFTR7n6N.",
+    "role": "admin",
+    "avatar": "/default-avatar.png",
+    "bio": "System Administrator",
+    "bar_code": null,
+    "followers": [],
+    "following": []
+  },
+  "raj@mail.com": {
+    "id": "e8517a4f-ecc0-4e0b-a04b-3a650417d922",
+    "name": "raj",
+    "email": "raj@mail.com",
+    "password": "$2b$12$dKFMTR5nn/xAptB4md2C8.1oHc5hyvqzqMZw12snsn2McJ7gX73sG",
+    "role": "lawyer",
+    "avatar": "/default-avatar.png",
+    "bio": "",
+    "bar_code": "1234",
+    "followers": [],
+    "following": [],
+    "isVerified": true
+  }
+}

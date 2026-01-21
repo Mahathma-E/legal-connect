@@ -1,0 +1,7 @@
+Flask
+Flask-Cors
+bcrypt
+python-dotenv
+google-generativeai
+PyPDF2
+python-docx
