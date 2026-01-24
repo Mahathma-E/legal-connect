@@ -131,5 +131,18 @@
     "followers": [],
     "following": [],
     "isVerified": true
+  },
+  "sample1@gmail.com": {
+    "id": "f3f58187-20af-4f83-9d47-d8f765572f4a",
+    "name": "sample",
+    "email": "sample1@gmail.com",
+    "password": "$2b$12$mcw/hEHYKC8Z5XlCTkmMeuPlup2vKKSlzeNby83kmYB79E/1igBNm",
+    "role": "public",
+    "avatar": "/default-avatar.png",
+    "bio": "",
+    "bar_code": null,
+    "followers": [],
+    "following": [],
+    "isVerified": false
   }
 }
