@@ -22,7 +22,8 @@
     "bar_code": null,
     "followers": [
       "e36fc983-bb17-43f2-8477-71be46633734",
-      "50f6bf11-4af8-4361-a558-31f95648222f"
+      "50f6bf11-4af8-4361-a558-31f95648222f",
+      "f3f58187-20af-4f83-9d47-d8f765572f4a"
     ],
     "following": [
       "b92e5fe7-78da-4995-aa8e-b538f46801a0"
@@ -38,7 +39,8 @@
     "bio": "",
     "bar_code": null,
     "followers": [
-      "a7268f81-4102-472a-bd40-c65b129e5e81"
+      "a7268f81-4102-472a-bd40-c65b129e5e81",
+      "f3f58187-20af-4f83-9d47-d8f765572f4a"
     ],
     "following": []
   },
@@ -131,5 +133,21 @@
     "followers": [],
     "following": [],
     "isVerified": true
+  },
+  "sample1@gmail.com": {
+    "id": "f3f58187-20af-4f83-9d47-d8f765572f4a",
+    "name": "sample",
+    "email": "sample1@gmail.com",
+    "password": "$2b$12$mcw/hEHYKC8Z5XlCTkmMeuPlup2vKKSlzeNby83kmYB79E/1igBNm",
+    "role": "public",
+    "avatar": "/uploads/avatar_f4b6ce17-bd65-4a29-9ff6-4ec5a9971b15_WhatsApp_Image_2025-12-18_at_5.31.59_PM.jpeg",
+    "bio": "",
+    "bar_code": null,
+    "followers": [],
+    "following": [
+      "a7268f81-4102-472a-bd40-c65b129e5e81",
+      "b92e5fe7-78da-4995-aa8e-b538f46801a0"
+    ],
+    "isVerified": false
   }
 }
