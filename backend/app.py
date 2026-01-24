@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from pymongo import MongoClient
 import json, os, uuid, bcrypt
 from werkzeug.utils import secure_filename
 from datetime import datetime
@@ -12,6 +13,15 @@ import io
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(DATA_DIR, '.env'))
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+# MongoDB connection
+client = MongoClient("mongodb://127.0.0.1:27017/")
+db = client["legalconnect"]
+
+# Collections
+constitution_col = db["constitution_parts"]
+users_col = db["users"]
+posts_col = db["posts"]
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -116,6 +126,15 @@ def manifest_json():
         "theme_color": "#000000",
         "icons": []
     })
+
+# MongoDB connection test route
+@app.route('/api/test-db', methods=['GET'])
+def test_db():
+    try:
+        db.list_collection_names()
+        return jsonify({"status": "MongoDB connected successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ---------- Auth ----------
 @app.route('/register', methods=['POST'])
@@ -681,8 +700,49 @@ def clear_notifications(uid):
 # ---------- Conversations / DMs ----------
 @app.route('/constitution', methods=['GET'])
 def get_constitution():
-    data = load_json('constitution.json', {"parts": []})
-    return jsonify(data)
+    """Fetch all constitution parts from MongoDB"""
+    try:
+        parts = list(constitution_col.find({}, {'_id': 0}))
+        return jsonify({"parts": parts})
+    except Exception as e:
+        print(f"Error fetching constitution: {e}")
+        # Fallback to JSON file if MongoDB fails
+        data = load_json('constitution.json', {"parts": []})
+        return jsonify(data)
+
+@app.route('/api/constitution/article/<article_id>', methods=['GET'])
+def get_article_by_id(article_id):
+    """Fetch a specific article by its ID from MongoDB"""
+    try:
+        # Query MongoDB for the part containing this article
+        part = constitution_col.find_one(
+            {"articles.id": article_id},
+            {'_id': 0}
+        )
+        
+        if not part:
+            return jsonify({'error': f'Article {article_id} not found'}), 404
+        
+        # Find the specific article within the part
+        article_data = None
+        for article in part.get('articles', []):
+            if article.get('id') == article_id:
+                article_data = article
+                break
+        
+        if not article_data:
+            return jsonify({'error': f'Article {article_id} not found'}), 404
+        
+        # Return article with part information
+        return jsonify({
+            'article': article_data,
+            'partTitle': part.get('title', ''),
+            'partId': part.get('id', '')
+        })
+        
+    except Exception as e:
+        print(f"Error fetching article {article_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/conversations', methods=['GET','POST'])
 def conversations():
