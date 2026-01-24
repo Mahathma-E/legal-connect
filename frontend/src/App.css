@@ -566,6 +566,58 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: 18px 28px;
+  margin-bottom: 24px;
+  position: sticky;
+  top: 80px;
+  z-index: 50;
+  background: var(--color-surface);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.constitution-search-bar .search-icon {
+  color: var(--text-muted);
+  font-size: 1.2rem;
+}
+
+.constitution-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  font-size: 1.05rem;
+  color: var(--text-main);
+  margin-bottom: 0;
+  font-weight: 400;
+}
+
+.constitution-search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.constitution-search-input:focus {
+  outline: none;
+  background: transparent;
+}
+
+.clear-search-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  ;
+  margin: 0 auto;
+  padding: 20px 0;
+}
+
+/* Search Bar - Top */
+.constitution-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 16px 24px;
   margin-bottom: 20px;
   position: sticky;

@@ -83,5 +83,29 @@
         "timestamp": "2026-01-20T16:20:05.186Z"
       }
     ]
+  },
+  {
+    "id": "d87ec1e6-2123-447d-b41f-c39effa8ead6",
+    "users": [
+      "f3f58187-20af-4f83-9d47-d8f765572f4a",
+      "a7268f81-4102-472a-bd40-c65b129e5e81"
+    ],
+    "status": "accepted",
+    "messages": [
+      {
+        "from": "f3f58187-20af-4f83-9d47-d8f765572f4a",
+        "content": "hi",
+        "timestamp": "2026-01-24T14:17:00.347Z"
+      }
+    ]
+  },
+  {
+    "id": "982e9e60-91be-4c37-b0eb-e1abef5d5514",
+    "users": [
+      "f3f58187-20af-4f83-9d47-d8f765572f4a",
+      "b92e5fe7-78da-4995-aa8e-b538f46801a0"
+    ],
+    "status": "accepted",
+    "messages": []
   }
 ]

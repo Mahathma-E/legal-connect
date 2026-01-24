@@ -12,7 +12,10 @@ import io
 
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(DATA_DIR, '.env'))
+
+# Initialize Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 # MongoDB connection
 client = MongoClient("mongodb://127.0.0.1:27017/")
@@ -22,6 +25,7 @@ db = client["legalconnect"]
 constitution_col = db["constitution_parts"]
 users_col = db["users"]
 posts_col = db["posts"]
+chat_history_col = db["chat_history"]  # New collection for chat history
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -111,8 +115,6 @@ def _format_chatbot_reply(text):
 
     # Join the lines back together, ensuring each is on a new line.
     return '\n'.join(formatted_lines)
-
-model = genai.GenerativeModel('gemini-2.5-flash')
 
 # Optional: serve a simple manifest to silence 404 spam in logs
 @app.route('/manifest.json')
@@ -299,32 +301,118 @@ def uploaded_file(filename):
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json or {}
-    message = data.get('message', '')
+    message = data.get('message', '').strip()
     document = data.get('document', '')
     
-    prompt = f"""You are an advanced Legal AI Assistant specializing in Indian Law.
-    Your goal is to provide comprehensive, well-structured, and easy-to-read legal advice.
+    # Check if message is a greeting
+    greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening', 
+                 'greetings', 'namaste', 'hola', 'howdy']
+    
+    message_lower = message.lower()
+    
+    # Handle greetings
+    if any(greeting == message_lower or message_lower.startswith(greeting + ' ') 
+           for greeting in greetings):
+        return jsonify({
+            'reply': "Hello! 👋\n\nI'm your Constitutional Law Assistant. I can help you with questions about the **Constitution of India**.\n\nFeel free to ask me about:\n- Specific articles (e.g., \"What is Article 21?\")\n- Fundamental Rights\n- Directive Principles\n- Constitutional amendments\n- Any other constitutional provisions\n\nHow can I assist you today?"
+        })
+    
+    # For constitutional questions, use Gemini API with Constitutional Law guidelines
+    prompt = f"""You are a professional Constitutional Law Assistant for India.
 
-    **Format your response using Markdown:**
-    - Use **## Headings** for main topics.
-    - Use **### Subheadings** for sections.
-    - Use **Bold** (**text**) for key legal terms and emphasis.
-    - Use **Bullet points** for lists.
-    - Use **> Blockquotes** for summarizing laws or acts.
+CRITICAL RULES:
 
-    **Context Document:** {document if document else "No specific document provided."}
+1. SCOPE - Answer ONLY using the Constitution of India:
+   - Answer ONLY using the Constitution of India
+   - Do NOT use IPC, CrPC, or other laws
+   - Do NOT mention punishments or criminal procedures
+   - Do NOT use foreign laws or personal opinions
+   - Do NOT give punishments or non-constitutional laws
+   - If not in Constitution, say: "This question is not directly covered under the Constitution of India."
 
-    **User Question:** {message}"""   
+2. RESPONSE STRUCTURE (Follow this format with proper spacing):
+
+SHORT ANSWER:
+[1-2 lines direct answer]
+
+CONSTITUTIONAL REFERENCE:
+[Mention specific Article number(s) from Constitution]
+
+EXPLANATION:
+[Explain in simple, conversational language]
+
+(Add blank lines between each section for better readability)
+
+3. LANGUAGE STYLE:
+   - Use simple, conversational English
+   - Be friendly and approachable (like Gemini)
+   - Do NOT add unnecessary legal jargon
+   - Do NOT include long lists or textbook-style explanations
+   - Provide examples when helpful
+   - Keep answers concise (2-4 short paragraphs max)
+   - Use light, professional emojis sparingly (⚖️ 📜 ✅ ❗ 👋)
+   - Do NOT overuse emojis
+   - Maintain a friendly, human tone
+
+4. FORMATTING:
+   - Highlight sub-titles clearly using simple headings
+   - Do NOT use *, **, or excessive markdown symbols
+   - Bold ONLY key constitutional terms, article numbers, and main ideas
+   - Do NOT bold entire sentences or paragraphs
+   - Use bullet points for lists (keep them short)
+   - Keep paragraphs short and readable
+
+**Context Document:** {document if document else "No specific document provided."}
+
+**User Question:** {message}
+
+Remember: Base your answer strictly on the Constitution of India. Be helpful, accurate, structured, and concise. Avoid jargon and long explanations. Use clean formatting with minimal symbols."""   
 
     try:
+        # Use Gemini for user-friendly responses
         response = model.generate_content(prompt)
         reply = response.text
         reply = _format_chatbot_reply(reply)
+        
+        # Save chat history to MongoDB
+        chat_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "user_message": message,
+            "bot_response": reply,
+            "document_context": document if document else None
+        }
+        chat_history_col.insert_one(chat_entry)
+        
     except Exception as e:
-        print(f"Error generating content: {e}")
+        print(f"Error generating content from Gemini: {e}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
         reply = "I'm sorry, I'm unable to respond at the moment. Please try again later."
     
     return jsonify({'reply': reply})
+
+# Get chat history
+@app.route('/chat/history', methods=['GET'])
+def get_chat_history():
+    try:
+        # Get optional limit parameter (default: 50 most recent)
+        limit = request.args.get('limit', 50, type=int)
+        
+        # Retrieve chat history sorted by most recent first
+        history = list(chat_history_col.find(
+            {},
+            {'_id': 0}  # Exclude MongoDB _id field
+        ).sort("timestamp", -1).limit(limit))
+        
+        return jsonify({
+            'success': True,
+            'count': len(history),
+            'history': history
+        })
+    except Exception as e:
+        print(f"Error retrieving chat history: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------- Profile ----------
 @app.route('/profile/<user_id>', methods=['GET','POST'])
