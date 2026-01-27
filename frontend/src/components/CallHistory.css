@@ -1,0 +1,215 @@
+/* CallHistory.css - Styling for Call History Component */
+
+.call-history-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.call-history-container h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 24px;
+}
+
+/* Stats Cards */
+.call-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    padding: 24px;
+    border-radius: 12px;
+    text-align: center;
+    color: white;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.stat-label {
+    font-size: 14px;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Call List */
+.call-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.call-item {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s;
+}
+
+.call-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+.call-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.call-direction {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.outgoing {
+    color: #2563eb;
+}
+
+.incoming {
+    color: #10b981;
+}
+
+.call-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.status-completed {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-active {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.call-item-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.call-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.call-detail .label {
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.call-detail .value {
+    font-size: 15px;
+    color: #111827;
+    font-weight: 600;
+}
+
+.call-detail .value.amount {
+    color: #10b981;
+    font-size: 16px;
+}
+
+.payment-success {
+    color: #10b981;
+    text-transform: capitalize;
+}
+
+.payment-failed {
+    color: #ef4444;
+    text-transform: capitalize;
+}
+
+/* Loading and Empty States */
+.loading-state,
+.error-state,
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6b7280;
+}
+
+.error-state {
+    color: #ef4444;
+}
+
+.empty-state p {
+    margin: 8px 0;
+}
+
+.empty-hint {
+    font-size: 14px;
+    color: #9ca3af;
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+    .call-history-container h2 {
+        color: #f9fafb;
+    }
+
+    .call-item {
+        background: #1f2937;
+        border-color: #374151;
+    }
+
+    .call-item-header {
+        border-bottom-color: #374151;
+    }
+
+    .call-detail .value {
+        color: #f9fafb;
+    }
+
+    .call-detail .label {
+        color: #9ca3af;
+    }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .call-history-container {
+        padding: 16px;
+    }
+
+    .call-history-container h2 {
+        font-size: 24px;
+    }
+
+    .call-item-body {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-value {
+        font-size: 28px;
+    }
+}

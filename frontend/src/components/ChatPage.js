@@ -62,14 +62,61 @@ const ChatPage = () => {
         setInput('');
         setIsLoading(true);
 
+        const botMsgIndex = messages.length + 1; // Index where bot msg will be
+        // Initialize bot message with empty text
+        setMessages(prev => [...prev, { from: 'bot', text: '' }]);
+
         try {
-            const res = await axios.post('/chat', {
-                message: userMsg.text,
-                document: documentContent
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: userMsg.text,
+                    document: documentContent
+                }),
             });
-            setMessages(prev => [...prev, { from: 'bot', text: res.data.reply }]);
+
+            if (!response.body) {
+                throw new Error('ReadableStream not supported in this browser.');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let botText = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                botText += chunk;
+
+                // Update the last message (bot's message) with new chunk
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    // We assume the bot message is the last one we added
+                    const lastMsg = newMessages[newMessages.length - 1];
+                    if (lastMsg.from === 'bot') {
+                        lastMsg.text = botText;
+                    }
+                    return newMessages;
+                });
+            }
+
         } catch (err) {
-            setMessages(prev => [...prev, { from: 'bot', text: '**Error:** Could not get response.' }]);
+            console.error(err)
+            setMessages(prev => {
+                const newMessages = [...prev];
+                const lastMsg = newMessages[newMessages.length - 1];
+                if (lastMsg.from === 'bot') {
+                    lastMsg.text += '\n\n**Error:** Could not get response.';
+                } else {
+                    newMessages.push({ from: 'bot', text: '**Error:** Connection failed.' });
+                }
+                return newMessages;
+            });
         }
         setIsLoading(false);
     };
@@ -78,7 +125,17 @@ const ChatPage = () => {
         <div className="chat-page-container">
             <div className="chat-sidebar glass-card">
                 <div className="sidebar-header">
-                    <FaRobot size={24} color="var(--color-primary)" />
+                    <img
+                        src="/chatbot-logo.jpg"
+                        alt="Legal AI"
+                        style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            marginRight: '10px',
+                            objectFit: 'cover'
+                        }}
+                    />
                     <h3>Legal AI</h3>
                 </div>
                 <div className="chat-history-placeholder">
@@ -101,7 +158,7 @@ const ChatPage = () => {
                                             h3: ({ node, ...props }) => <h3 style={{ fontSize: '1.1em', fontWeight: 'bold', color: '#a0aec0', margin: '6px 0' }} {...props} />,
                                             ul: ({ node, ...props }) => <ul style={{ paddingLeft: '20px', margin: '5px 0' }} {...props} />,
                                             li: ({ node, ...props }) => <li style={{ marginBottom: '4px' }} {...props} />,
-                                            blockquote: ({ node, ...props }) => <blockquote style={{ borderLeft: '4px solid var(--color-accent)', paddingLeft: '10px', fontStyle: 'italic', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }} {...props} />
+                                            blockquote: ({ node, ...props }) => <blockquote style={{ borderLeft: '4px solid #007bff', paddingLeft: '10px', fontStyle: 'italic', background: 'rgba(0,0,0,0.05)', borderRadius: '4px' }} {...props} />
                                         }}
                                     >
                                         {m.text}
@@ -141,7 +198,7 @@ const ChatPage = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

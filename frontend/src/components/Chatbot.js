@@ -12,11 +12,23 @@ const Chatbot = () => {
       style={{
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         border: '1px solid rgba(255,255,255,0.3)',
-        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
+        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+        overflow: 'hidden'
       }}
       title="Open Legal Assistant"
     >
-      <FaRobot size={30} color="white" />
+      <img
+        src="/chatbot-logo.jpg"
+        alt="Legal AI"
+        style={{
+          width: '100%',
+          height: '100%',
+          borderRadius: '50%',
+          objectFit: 'cover',
+          objectPosition: 'center',
+          transform: 'scale(5.5)'
+        }}
+      />
     </div>
   );
 };

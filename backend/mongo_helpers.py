@@ -1,4 +1,15 @@
-# MongoDB Helper Functions to replace JSON operations
+from pymongo import MongoClient
+
+# MongoDB connection
+client = MongoClient("mongodb://127.0.0.1:27017/")
+db = client["legalconnect"]
+
+# Collections
+users_col = db["users"]
+posts_col = db["posts"]
+conversations_col = db["conversations"]
+notifications_col = db["notifications"]
+reports_col = db["reports"]
 
 def get_user_by_email(email):
     """Get user by email from MongoDB"""
@@ -19,7 +30,11 @@ def get_user_by_email_or_barcode(email_or_bar):
 
 def create_user(user_data):
     """Create a new user in MongoDB"""
+    # Create a copy to avoid modifying the input if needed, 
+    # but here we just want to ensure we don't return _id if it's not string
     users_col.insert_one(user_data)
+    if '_id' in user_data:
+        del user_data['_id']
     return user_data
 
 def update_user(user_id, update_data):
@@ -49,6 +64,8 @@ def get_post_by_id(post_id):
 def create_post(post_data):
     """Create new post"""
     posts_col.insert_one(post_data)
+    if '_id' in post_data:
+        del post_data['_id']
     return post_data
 
 def update_post(post_id, update_data):
@@ -88,17 +105,13 @@ def add_comment_to_post(post_id, comment_data):
         {"$push": {"comments": comment_data}}
     )
 
-def delete_comment_from_post(post_id, comment_index):
-    """Delete comment from post"""
-    post = get_post_by_id(post_id)
-    if post and 'comments' in post and 0 <= comment_index < len(post['comments']):
-        post['comments'].pop(comment_index)
-        posts_col.update_one(
-            {"id": post_id},
-            {"$set": {"comments": post['comments']}}
-        )
-        return True
-    return False
+def delete_comment_from_post(post_id, comment_id):
+    """Delete comment from post by ID"""
+    posts_col.update_one(
+        {"id": post_id},
+        {"$pull": {"comments": {"id": comment_id}}}
+    )
+    return True
 
 # Conversations helpers
 def get_conversations_for_user(user_id):
@@ -115,6 +128,8 @@ def get_conversation_by_id(conv_id):
 def create_conversation(conv_data):
     """Create new conversation"""
     conversations_col.insert_one(conv_data)
+    if '_id' in conv_data:
+        del conv_data['_id']
     return conv_data
 
 def update_conversation(conv_id, update_data):

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import Post from './Post';
 import DM from './DM';
+import IncomingCallRequests from './IncomingCallRequests';
 import { FaPlus } from 'react-icons/fa';
 
 const Home = ({ user, showDMs }) => {
@@ -69,6 +70,9 @@ const Home = ({ user, showDMs }) => {
 
   return (
     <div className="container">
+      {/* Incoming Call Requests */}
+      <IncomingCallRequests userId={user.id} />
+
       <div className="glass-card composer">
         <form onSubmit={handlePost}>
           <textarea

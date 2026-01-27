@@ -1,0 +1,55 @@
+Total Articles in DB: 2063
+Articles with Content: 1779
+Coverage: 86.23%
+
+Missing Content for Articles:
+- Article 2: Subs. by s. 2 ibid.for sub-clause ( b)(w.e.f. 1-11-1956).
+- Article 1: Added by the Constitution (First Amendment) Act, 1951, s. 2  (w.e.f. 18-6-1951).
+- Article 2: Ins. by the Constitution (Ninety-third Amendment) Act, 2005, s. 2  (w.e.f. 20-1-2006).
+- Article 2: Ins. by the Constitution (Seventy-seventh Amendment) Act, 1995, s. 2 (w.e.f. 17-6-1995).
+- Article 3: Ins. by the Constitution (Forty-second  Amendment) Act, 1976, s. 3 (w.e.f. 3-1-1977).
+- Article 4: Ins. by the Constitution (First Amendment) Act, 1951, s. 4, (with retrospective effect).
+- Article 2: Ins. by the Constitution (Seventeenth  Amendment) Act, 1964, s. 2(i)(w.e.f. 20-6-1964).
+- Article 3: Subs. by s.2(ii), ibid.,for sub-clause ( a)(with retrospective effect).
+- Article 1: Ins. by the Constitution (Fourth  Amendment) Act, 1955, s. 3 (with retrospective effect).
+- Article 2: Ins. by the Constitution (First Amendment) Act, 1951, s. 5 (w.e.f. 18-6-1951).
+- Article 3: Ins. by the Constitution (Twenty-fifth Amendment) Act, 1971, s. 3 (w.e.f. 20-4-1972).
+- Article 1: Ins. by the Constitution  (Forty-second  Amendment) Act, 1976, s. 6 (w.e.f. 1-2-1977).
+- Article 2: Ins. by s. 8, ibid.(w.e.f. 3-1-1977).
+- Article 1: Ins. by the Constitution (Ninety-seventh Amendment) Act, 2011, s. 3 (w.e.f. 15-2-2012).
+- Article 52: The President of India .—There shall be a President of India.
+- Article 63: The Vice-President of India. —There shall be a Vice-President of India.
+- Article 2: Ins. by the Constitution (Forty-fourth Amendment) Act, 1978, s.11 (w.e.f. 20-6-1979).
+- Article 2: Subs. by s. 3, ibid, for "States specified in Part C of First Schedule"(w.e.f. 1-11-1956).
+- Article 3: Subs. by s.4, ibid.for arts. 81 and 82 (w.e.f. 1-11-1956).
+- Article 1: Addedby the Constitution  (Forty-second Amendment)  Act, 1976, s. 15 (w.e.f. 3-1-1977).
+- Article 3: Subs. by s.3, ibid, for certain words (w.e.f. 21-2-2002).
+- Article 5: Ins. by the Constitution  (Forty-second Amendment)  Act, 1976, s. 16(w.e.f. 3-1-1977).
+- Article 4: Subs. by the Constitution (Thirty-third Amendment) Act, 1974, s.2 (w.e.f. 19-5-1974).
+- Article 3: Ins. by s. 3, ibid.(w.e.f. 1-3-1985).
+- Article 1: Ins. by the Constitution (Fifteenth Amendment) Act, 1963, s. 2  (w.e.f. 5-10-1963).
+- Article 2: Ins. by the Constitution  (Forty-second Amendment)  Act, 1976, s. 23(w.e.f. 1-2-1977).
+- Article 2: Certain words omitted by s. 17, ibid.(w.e.f. 1-8-1979).
+- Article 1: Ins. by the Constitution (Forty-second Amendment) Act, 1976, s.24 (w.e.f. 1-2-1977).
+- Article 1: Seethe Supreme Court (Decrees and Orders) Enforcement Order, 1954 (C.O. 47).
+- Article 3: Subs. by s. 29 and Sch., ibid., for "said clause"(w.e.f. 1-11-1956).
+- Article 1: Ins. by the Constitution (Forty-second Amendment) Act, 1976, s.26 (w.e.f. 1-2-1977).
+- Article 3: Ins. by the Constitution (Ninety-first Amendment) Act, 2003, s.3 (w.e.f. 1-1-2004).
+- Article 5: Ins. by the Constitution (Seventh Amendment) Act, 1956, s.8 (w.e.f. 1-11-1956).
+- Article 4: Ins. by the Constitution (Forty-second Amendment) Act, 1976,s. 29 (w.e.f. 3-1-1977).
+- Article 2: Subs. by s.9, ibid., for "every session" (w.e.f. 18-6-1951).
+- Article 1: Ins. by the State of Himachal Pradesh Act, 1970 (53 of 1970), s. 46 (w.e.f. 25-1-1971).
+- Article 3: Ins. by the State of Mizoram Act, 1986 (34 of 1986), s. 39 (w.e.f. 20-2-1987).
+- Article 2: Cls. (2) and (3) omitted by s. 29 and Sch., ibid.(w.e.f. 1-11-1956).
+- Article 3: Ins. by the Constitution (Forty-fourth Amendment) Act,1978,s. 28 (w.e.f. 20-6-1979).
+- Article 3: Subs.by s. 13, ibid.(w.e.f. 1-11-1956).
+- Article 4: 1st November, 1956.
+- Article 3: Ins. by s. 7, ibid.(w.e.f. 5-10-1963).
+- Article 3: Ins. by the Constitution (Forty-second Amendment) Act, 1976, s. 39 (w.e.f. 1-2-1977).
+- Article 2: Subs. by s. 17, ibid., for art. 239 (w.e.f. 1-11-1956).
+- Article 3: Ins. by the Constitution (Fourteenth Amendment) Act, 1962, s. 4 (w.e.f. 28-12-1962).
+- Article 2: Ins. by s. 3, ibid.(w.e.f. 21-12-1991).
+- Article 1: Ins. by the Constitution (Twenty-seventh Amendment) Act, 1971, s. 3 (w.e.f. 30-12-1971).
+- Article 6: Ins. by the Constitution (Fourteenth Amendment) Act, 1962, s. 5 (w.e.f. 16-8-1962).
+- Article 1: Ins. by the Constitution (Twenty-seventh Amendment) Act, 1971, s. 4 (w.e.f. 15-2-1972).
+- Article 5: Subs. by s. 29. and Sch., ibid.,for "such State" (w.e.f. 1-11-1956).

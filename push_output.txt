@@ -1,0 +1,95 @@
+﻿git : remote: error: GH013: 
+Repository rule violations found for 
+refs/heads/feature/firewall-added.   
+     
+At line:1 char:1
++ git push -u origin 
+feature/firewall-added 2> 
+push_output_raw.txt; Get ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpe 
+   cified: (remote: error: ...-adde  
+  d.        :String) [], RemoteExc   
+ eption
+    + FullyQualifiedErrorId : Native 
+   CommandError
+ 
+remote: 
+remote: - GITHUB PUSH PROTECTION     
+   
+remote:   ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓ
+ÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇ
+öΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö        
+remote:     Resolve the following 
+violations before pushing again      
+  
+remote: 
+remote:     - Push cannot contain 
+secrets        
+remote: 
+remote:             
+remote:      (?) Learn how to 
+resolve a blocked push        
+remote:      https://docs.github.com/
+code-security/secret-scanning/working
+-with-secret-scanning-and-push-protec
+tion/working-with-push-protection-fro
+m-the-command-line#resolving-a-blocke
+d-push        
+remote:             
+remote:             
+remote:       ΓÇöΓÇö Google Cloud 
+Service Account Credentials 
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö       
+ 
+remote:        locations:        
+remote:          - commit: 9ad0c4d4c7
+6eb39697f479ec75fea7f89651727e       
+ 
+remote:            path: 
+backend/firebase-credentials.json:1  
+      
+remote:             
+remote:        (?) To push, remove 
+secret from commit(s) or follow this 
+URL to allow the secret.        
+remote:        https://github.com/Mah
+athma-E/legal-connect/security/secret
+-scanning/unblock-secret/38ph9yZ6IDl7
+3yYn4AaYeUzUeqI        
+remote:             
+remote:             
+remote:       ΓÇöΓÇö OpenAI API Key Γ
+ÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇ
+öΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö    
+    
+remote:        locations:        
+remote:          - commit: 9ad0c4d4c7
+6eb39697f479ec75fea7f89651727e       
+ 
+remote:            path: 
+GMAIL_SETUP_GUIDE.md:126        
+remote:             
+remote:        (?) To push, remove 
+secret from commit(s) or follow this 
+URL to allow the secret.        
+remote:        https://github.com/Mah
+athma-E/legal-connect/security/secret
+-scanning/unblock-secret/38ph9vIn9B13
+q7f7l1K0b4qYUhH        
+remote:             
+remote: 
+remote: 
+To https://github.com/Mahathma-E/lega
+l-connect
+ ! [remote rejected] 
+feature/firewall-added -> 
+feature/firewall-added (push 
+declined due to repository rule 
+violations)
+error: failed to push some refs to 'h
+ttps://github.com/Mahathma-E/legal-co
+nnect'

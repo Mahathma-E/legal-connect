@@ -1,5 +1,6 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, session, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
+from flask_mail import Mail
 from pymongo import MongoClient
 import json, os, uuid, bcrypt
 from werkzeug.utils import secure_filename
@@ -9,6 +10,9 @@ from dotenv import load_dotenv
 import re
 import PyPDF2
 import io
+import email_utils
+import firebase_config
+import mongo_helpers  # Import MongoDB helpers
 
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(DATA_DIR, '.env'))
@@ -25,10 +29,22 @@ db = client["legalconnect"]
 constitution_col = db["constitution_parts"]
 users_col = db["users"]
 posts_col = db["posts"]
-chat_history_col = db["chat_history"]  # New collection for chat history
+chat_history_col = db["chat_history"]
+call_settings_col = db["call_settings"]  # Call feature settings
+call_history_col = db["call_history"]    # Call records
+call_requests_col = db["call_requests"]  # NEW: Call requests (pending/accepted/rejected)
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
+
+# Configure Flask-Mail
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True') == 'True'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
+mail = Mail(app)
 
 app.config['UPLOAD_FOLDER'] = os.path.join(DATA_DIR, 'uploads')
 app.config['UPLOAD_FOLDER'] = os.path.join(DATA_DIR, 'uploads')
@@ -90,11 +106,10 @@ def _format_chatbot_reply(text):
     # This regex is designed to be very aggressive. It targets:
     # 1. Isolated single asterisks: `(?<!\*)\*(?!\*)` (not preceded or followed by another asterisk)
     # 2. Three or more asterisks: `\*{3,}`
-    # It tries to leave `**text**` intact for bolding.
     text = re.sub(r'(?<!\*)\*(?!\*)|\*{3,}', '', text)
 
-    # Replace common list-like prefixes (numbers, hyphens with various spacing, bullet characters) with a standard Markdown bullet point '- '
-    # This also normalizes multiple hyphens to a single one.
+    # Normalize list prefixes (numbers, hyphens, bullets) to '- '
+    # This includes 1., 1), *, -, •
     text = re.sub(r'^\s*(?:\d+\.\s*|\d+\)\s*|\*\s*|\-+\s*|[•]\s*)', '- ', text, flags=re.MULTILINE)
 
     lines = text.split('\n')
@@ -113,7 +128,7 @@ def _format_chatbot_reply(text):
             # This is a heuristic that might need further adjustment.
             formatted_lines.append('- ' + stripped_line.replace('** ', '**')) # Add a bullet and clean up bolding spacing
 
-    # Join the lines back together, ensuring each is on a new line.
+    # Join the lines back together
     return '\n'.join(formatted_lines)
 
 # Optional: serve a simple manifest to silence 404 spam in logs
@@ -141,92 +156,301 @@ def test_db():
 # ---------- Auth ----------
 @app.route('/register', methods=['POST'])
 def register():
-    users = load_json('users.json', {})
+    """
+    Register user with Firebase Authentication
+    Frontend creates Firebase user, backend stores user data in MongoDB
+    """
     data = request.json or {}
 
-    if not data.get('email') or not data.get('password') or not data.get('name'):
-        return jsonify({'error': 'Missing fields'}), 400
-    if data['email'] in users:
+    firebase_uid = data.get('firebaseUid')
+    email = data.get('email')
+    name = data.get('name')
+    
+    if not firebase_uid or not email or not name:
+        return jsonify({'error': 'Missing fields (firebaseUid, email, name required)'}), 400
+    
+    # Check if user already exists
+    if mongo_helpers.get_user_by_email(email):
         return jsonify({'error': 'Email already exists'}), 409
 
     uid = str(uuid.uuid4())
-    hashed = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    users[data['email']] = {
+    
+    # prepare user data
+    user_data = {
         'id': uid,
-        'name': data['name'],
-        'email': data['email'],
-        'password': hashed,
-        'role': data.get('role','public'),
+        'firebaseUid': firebase_uid,  # Link to Firebase user
+        'name': name,
+        'email': email,
+        'role': data.get('role', 'public'),
         'avatar': data.get('avatar') or '/default-avatar.png',
-        'bio': data.get('bio',''),
-        # if you use bar code for lawyers, you can store it here:
-        'bar_code': data.get('bar_code'),
+        'bio': data.get('bio', ''),
+        'bar_code': data.get('bar_code'),  # For lawyers
         'followers': [],
         'following': [],
-        'isVerified': False # Default false, admin can verify lawyers
+        'isVerified': False,  # Admin verification for lawyers
+        'createdAt': datetime.now().isoformat()
     }
-    save_json('users.json', users)
+    
+    mongo_helpers.create_user(user_data)
+    
+    print(f"[FIREBASE] Registered user: {email} with Firebase UID: {firebase_uid}")
+    
     return jsonify({
-        'id': uid,
-        'name': data['name'],
-        'email': data['email'],
-        'role': users[data['email']]['role'],
-        'avatar': users[data['email']]['avatar'],
-        'isVerified': users[data['email']]['isVerified']
-    })
+        'message': 'Registration successful! Please verify your email.',
+        'user': {
+            'id': uid,
+            'name': name,
+            'email': email,
+            'role': user_data['role'],
+            'avatar': user_data['avatar']
+        }
+    }), 201
+
 
 @app.route('/login', methods=['POST', 'OPTIONS'])
 def login():
+    """
+    Login with Firebase Authentication
+    """
     if request.method == 'OPTIONS':
-        # CORS preflight
         return '', 200
 
-    data = request.get_json() or {}
-    email_or_bar = data.get('emailOrBar')
-    password = data.get('password')
-
-    print(f"Login attempt - emailOrBar: {email_or_bar}, password length: {len(password) if password else 0}")
-
-    if not email_or_bar or not password:
-        return jsonify({'error': 'Missing credentials'}), 400
-
-    users = load_json('users.json', {})
-    user_entry = None
-
-    # users.json structure: { "<email>": { userObj } }
-    for email, u in users.items():
-        if u.get('email') == email_or_bar or u.get('bar_code') == email_or_bar:
-            user_entry = u
-            print(f"Found user: {u.get('email')} with role: {u.get('role')}")
-            break
-
-    if not user_entry:
-        print(f"User not found for: {email_or_bar}")
-        return jsonify({'error': 'User not found'}), 401
-
-    # bcrypt check against stored hash
     try:
-        if not bcrypt.checkpw(password.encode('utf-8'), user_entry['password'].encode('utf-8')):
-            print(f"Password check failed for user: {user_entry.get('email')}")
-            return jsonify({'error': 'Invalid password'}), 401
-        print(f"Password check successful for user: {user_entry.get('email')}")
-    except Exception as e:
-        print(f"Exception during password check: {e}")
-        # In case some legacy accounts were stored in plain text by mistake
-        if user_entry['password'] != password:
-            print(f"Plain text password check failed for user: {user_entry.get('email')}")
-            return jsonify({'error': 'Invalid password'}), 401
+        try:
+            data = request.get_json() or {}
+            firebase_token = data.get('firebaseToken')
+        except Exception as e:
+            print(f"[AUTH ERROR] Failed to parse request data: {e}", flush=True)
+            return jsonify({'error': 'Invalid request data'}), 400
 
+        if not firebase_token:
+            return jsonify({'error': 'Missing Firebase token'}), 400
+
+        # Verify Firebase ID token
+        try:
+            decoded_token, error_msg = firebase_config.verify_firebase_token(firebase_token)
+            if not decoded_token:
+                print(f"[AUTH ERROR] Token verification error: {error_msg}", flush=True)
+                return jsonify({'error': f'Invalid token: {error_msg}'}), 401
+        except Exception as e:
+            print(f"[AUTH ERROR] verify_firebase_token raised exception: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': 'Authentication service error'}), 500
+
+        email = decoded_token.get('email')
+        email_verified = decoded_token.get('email_verified', False)
+
+        print(f"[FIREBASE] Login attempt - email: {email}, verified: {email_verified}")
+
+        # Check if email is verified
+        # if not email_verified:
+        #    return jsonify({
+        #        'error': 'Please verify your email before logging in. Check your inbox for the verification link.',
+        #        'emailNotVerified': True,
+        #         'email': email
+        #    }), 403
+
+        # Get user from MongoDB
+        try:
+            user_entry = mongo_helpers.get_user_by_email(email)
+        except Exception as e:
+            print(f"[DB ERROR] MongoDB lookup failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': 'Database error'}), 500
+
+        if not user_entry:
+            return jsonify({'error': 'User not found. Please register first.'}), 404
+
+        print(f"[FIREBASE] Login successful for: {email}")
+
+        return jsonify({
+            'message': 'Login successful',
+            'user': {
+                'id': user_entry['id'],
+                'email': user_entry['email'],
+                'name': user_entry.get('name'),
+                'role': user_entry.get('role', 'public'),
+                'avatar': user_entry.get('avatar', '/default-avatar.png')
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"[CRITICAL ERROR] Message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Internal Server Error'}), 500
+
+# ---------- Email Verification ----------
+@app.route('/api/auth/verify-email/<token>', methods=['GET'])
+def verify_email(token):
+    """Verify user's email address using the verification token"""
+    
+    # Find user by verification token in MongoDB
+    user_entry = users_col.find_one({"emailVerificationToken": token})
+    
+    if not user_entry:
+        return jsonify({'error': 'Invalid verification link'}), 400
+    
+    # Check if token has expired
+    if email_utils.is_token_expired(user_entry.get('emailVerificationExpiry')):
+        return jsonify({'error': 'Verification link has expired. Please request a new one.'}), 400
+    
+    # Verify the email
+    users_col.update_one(
+        {"_id": user_entry["_id"]},
+        {"$set": {
+            "emailVerified": True,
+            "emailVerificationToken": None,
+            "emailVerificationExpiry": None
+        }}
+    )
+    
     return jsonify({
-        'message': 'Login successful',
-        'user': {
-            'id': user_entry['id'],
-            'email': user_entry['email'],
-            'name': user_entry.get('name'),
-            'role': user_entry.get('role','public'),
-            'avatar': user_entry.get('avatar','/default-avatar.png')
-        }
+        'message': 'Email verified successfully! You can now log in.',
+        'success': True
     }), 200
+
+@app.route('/api/auth/resend-verification', methods=['POST'])
+def resend_verification():
+    """Resend verification email to user"""
+    data = request.json or {}
+    email = data.get('email')
+    
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    
+    user_entry = mongo_helpers.get_user_by_email(email)
+    
+    if not user_entry:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Check if already verified
+    if user_entry.get('emailVerified', False):
+        return jsonify({'error': 'Email is already verified'}), 400
+    
+    # Generate new verification token
+    verification_token = email_utils.generate_verification_token()
+    token_expiry = email_utils.generate_token_expiry(hours=24)
+    
+    users_col.update_one(
+        {"email": email},
+        {"$set": {
+            "emailVerificationToken": verification_token,
+            "emailVerificationExpiry": token_expiry
+        }}
+    )
+    
+    # Send verification email
+    try:
+        email_sent = email_utils.send_verification_email(
+            mail,
+            email,
+            user_entry.get('name'),
+            verification_token
+        )
+        if not email_sent:
+            return jsonify({'error': 'Failed to send verification email'}), 500
+    except Exception as e:
+        print(f"Error sending verification email: {e}")
+        return jsonify({'error': 'Failed to send verification email'}), 500
+    
+    return jsonify({
+        'message': 'Verification email sent successfully. Please check your inbox.',
+        'success': True
+    }), 200
+
+# ---------- Password Reset ----------
+@app.route('/api/auth/forgot-password', methods=['POST'])
+def forgot_password():
+    """Send password reset email to user"""
+    data = request.json or {}
+    email = data.get('email')
+    
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    
+    user_entry = mongo_helpers.get_user_by_email(email)
+    
+    if not user_entry:
+        # Don't reveal if email exists or not (security best practice)
+        return jsonify({
+            'message': 'If an account with that email exists, a password reset link has been sent.',
+            'success': True
+        }), 200
+    
+    # Generate password reset token
+    reset_token = email_utils.generate_verification_token()
+    token_expiry = email_utils.generate_token_expiry(hours=24)
+    
+    users_col.update_one(
+        {"email": email},
+        {"$set": {
+            "passwordResetToken": reset_token,
+            "passwordResetExpiry": token_expiry
+        }}
+    )
+    
+    # Send password reset email
+    try:
+        email_sent = email_utils.send_password_reset_email(
+            mail,
+            email,
+            user_entry.get('name'),
+            reset_token
+        )
+        if not email_sent:
+            print(f"Failed to send password reset email to {email}")
+    except Exception as e:
+        print(f"Error sending password reset email: {e}")
+    
+    return jsonify({
+        'message': 'If an account with that email exists, a password reset link has been sent.',
+        'success': True
+    }), 200
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    """Reset user's password using the reset token"""
+    data = request.json or {}
+    token = data.get('token')
+    new_password = data.get('password')
+    
+    if not token or not new_password:
+        return jsonify({'error': 'Token and new password are required'}), 400
+    
+    if len(new_password) < 6:
+        return jsonify({'error': 'Password must be at least 6 characters long'}), 400
+    
+    # Find user by reset token in MongoDB
+    user_entry = users_col.find_one({"passwordResetToken": token})
+    
+    if not user_entry:
+        return jsonify({'error': 'Invalid or expired reset link'}), 400
+    
+    # Check if token has expired
+    if email_utils.is_token_expired(user_entry.get('passwordResetExpiry')):
+        return jsonify({'error': 'Reset link has expired. Please request a new one.'}), 400
+    
+    # Hash the new password
+    hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    # Update password and remove reset token
+    users_col.update_one(
+        {"_id": user_entry["_id"]},
+        {"$set": {
+            "password": hashed,
+            "passwordResetToken": None,
+            "passwordResetExpiry": None
+        }}
+    )
+    
+    return jsonify({
+        'message': 'Password reset successfully! You can now log in with your new password.',
+        'success': True
+    }), 200
+
 
 # ---------- Uploads ----------
 @app.route('/upload', methods=['POST'])
@@ -318,79 +542,69 @@ def chat():
         })
     
     # For constitutional questions, use Gemini API with Constitutional Law guidelines
-    prompt = f"""You are a professional Constitutional Law Assistant for India.
+    prompt = f"""You are an advanced Legal AI Assistant specializing in Indian Constitutional Law.
+Your goal is to provide comprehensive, well-structured, and easy-to-read legal advice.
 
-CRITICAL RULES:
-
-1. SCOPE - Answer ONLY using the Constitution of India:
-   - Answer ONLY using the Constitution of India
-   - Do NOT use IPC, CrPC, or other laws
-   - Do NOT mention punishments or criminal procedures
-   - Do NOT use foreign laws or personal opinions
-   - Do NOT give punishments or non-constitutional laws
-   - If not in Constitution, say: "This question is not directly covered under the Constitution of India."
-
-2. RESPONSE STRUCTURE (Follow this format with proper spacing):
-
-SHORT ANSWER:
-[1-2 lines direct answer]
-
-CONSTITUTIONAL REFERENCE:
-[Mention specific Article number(s) from Constitution]
-
-EXPLANATION:
-[Explain in simple, conversational language]
-
-(Add blank lines between each section for better readability)
-
-3. LANGUAGE STYLE:
-   - Use simple, conversational English
-   - Be friendly and approachable (like Gemini)
-   - Do NOT add unnecessary legal jargon
-   - Do NOT include long lists or textbook-style explanations
-   - Provide examples when helpful
-   - Keep answers concise (2-4 short paragraphs max)
-   - Use light, professional emojis sparingly (⚖️ 📜 ✅ ❗ 👋)
-   - Do NOT overuse emojis
-   - Maintain a friendly, human tone
-
-4. FORMATTING:
-   - Highlight sub-titles clearly using simple headings
-   - Do NOT use *, **, or excessive markdown symbols
-   - Bold ONLY key constitutional terms, article numbers, and main ideas
-   - Do NOT bold entire sentences or paragraphs
-   - Use bullet points for lists (keep them short)
-   - Keep paragraphs short and readable
+CRITICAL INTERACTION RULES:
+1. SCOPE: Answer ONLY using the Constitution of India.
+2. CITATIONS:
+   - ALWAYS cite relevant **Case Laws & Precedents** if applicable.
+   - Provide the **Case Name**, **Year**, and a **Brief Summary** of the verdict.
+   - If no direct case law exists, mention similar hypothetical scenarios.
+3. FORMATTING:
+   - Use **## Headings** for main topics.
+   - Use **### Subheadings** for sections.
+   - Use **Bold** (**text**) for key legal terms and emphasis.
+   - Use **Bullet points** for lists (normalized to '- ').
+   - Use **> Blockquotes** for summarizing laws or acts.
 
 **Context Document:** {document if document else "No specific document provided."}
 
 **User Question:** {message}
 
-Remember: Base your answer strictly on the Constitution of India. Be helpful, accurate, structured, and concise. Avoid jargon and long explanations. Use clean formatting with minimal symbols."""   
+Please provide a structured response following the above rules."""   
 
-    try:
-        # Use Gemini for user-friendly responses
-        response = model.generate_content(prompt)
-        reply = response.text
-        reply = _format_chatbot_reply(reply)
-        
-        # Save chat history to MongoDB
-        chat_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "user_message": message,
-            "bot_response": reply,
-            "document_context": document if document else None
-        }
-        chat_history_col.insert_one(chat_entry)
-        
-    except Exception as e:
-        print(f"Error generating content from Gemini: {e}")
-        print(f"Error type: {type(e).__name__}")
-        import traceback
-        traceback.print_exc()
-        reply = "I'm sorry, I'm unable to respond at the moment. Please try again later."
-    
-    return jsonify({'reply': reply})
+    # Stream response
+    def generate():
+        full_response = ""
+        try:
+            # Use Gemini with streaming enabled
+            response_stream = model.generate_content(prompt, stream=True)
+            
+            for chunk in response_stream:
+                if chunk.text:
+                    # Clean/Format chunk if needed (streaming formatting is tricky, 
+                    # so we might do lightweight cleaning or client-side)
+                    # For simplicity, we stream raw text and let client handle markdown.
+                    # Use a delimiter if needed, or just raw text.
+                    # We'll stream raw text chunks.
+                    text_chunk = chunk.text
+                    full_response += text_chunk
+                    yield text_chunk
+            
+            # After streaming is done, save to MongoDB
+            # We apply the final formatting to the saved entry for consistency
+            final_reply = _format_chatbot_reply(full_response)
+            
+            chat_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "user_message": message,
+                "bot_response": final_reply,
+                "document_context": document if document else None
+            }
+            # Need to run DB operation in context or safe manner
+            # Since we are in a generator, Flask app context might be tricky if not handled,
+            # but usually fine within the request context.
+            try:
+                chat_history_col.insert_one(chat_entry)
+            except Exception as db_e:
+                print(f"Error saving chat history: {db_e}")
+
+        except Exception as e:
+            print(f"Error generating content from Gemini: {e}")
+            yield f"\n\n[Error: {str(e)}]"
+
+    return Response(stream_with_context(generate()), mimetype='text/plain')
 
 # Get chat history
 @app.route('/chat/history', methods=['GET'])
@@ -410,20 +624,58 @@ def get_chat_history():
             'count': len(history),
             'history': history
         })
+        
     except Exception as e:
         print(f"Error retrieving chat history: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# ---------- Users ----------
+# Search users by name or email
+@app.route('/users/search', methods=['GET'])
+def search_users():
+    """Search users by name or email"""
+    try:
+        query = request.args.get('q', '').strip().lower()
+        
+        if not query or len(query) < 2:
+            return jsonify([])
+            
+        # MongoDB regex search
+        regex_query = {"$regex": query, "$options": "i"}
+        users_found = list(users_col.find({
+            "$or": [
+                {"name": regex_query},
+                {"email": regex_query}
+            ]
+        }, {'_id': 0}).limit(10))
+        
+        results = []
+        for user_data in users_found:
+             results.append({
+                'id': user_data.get('id'),
+                'name': user_data.get('name'),
+                'email': user_data.get('email'),
+                'role': user_data.get('role'),
+                'avatar': user_data.get('avatar'),
+                'isVerified': user_data.get('isVerified', False)
+            })
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        print(f"Error searching users: {e}")
+        return jsonify([])
+
 # ---------- Profile ----------
 @app.route('/profile/<user_id>', methods=['GET','POST'])
 def profile(user_id):
-    users = load_json('users.json', {})
-    email_key = next((k for k,v in users.items() if v.get('id') == user_id), None)
-    if not email_key:
+    # Find user
+    u = mongo_helpers.get_user_by_id(user_id)
+    
+    if not u:
         return jsonify({'error': 'User not found'}), 404
 
     if request.method == 'GET':
-        u = users[email_key]
         return jsonify({
             'id': u['id'],
             'name': u['name'],
@@ -437,22 +689,26 @@ def profile(user_id):
         })
 
     data = request.json or {}
-    u = users[email_key]
+    update_data = {}
+    
     for k in ('name','bio','avatar'):
         if k in data:
-            u[k] = data[k]
-    users[email_key] = u
-    save_json('users.json', users)
+            update_data[k] = data[k]
+    
+    if update_data:
+        mongo_helpers.update_user(user_id, update_data)
+        # Update local object to return
+        u.update(update_data)
+        
     return jsonify({'message':'updated','user': u})
 
 @app.route('/profile/<user_id>/delete', methods=['DELETE'])
 def delete_account(user_id):
-    users = load_json('users.json', {})
     data = request.json or {}
     
-    # Find user by ID
-    email_key = next((k for k,v in users.items() if v.get('id') == user_id), None)
-    if not email_key:
+    # Find user
+    user = mongo_helpers.get_user_by_id(user_id)
+    if not user:
         return jsonify({'error': 'User not found'}), 404
     
     # Verify password for security
@@ -460,108 +716,127 @@ def delete_account(user_id):
     if not password:
         return jsonify({'error': 'Password required for account deletion'}), 400
     
-    user = users[email_key]
     try:
-        if not bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
-            return jsonify({'error': 'Invalid password'}), 401
+        # Check password (hashed)
+        # Note: In a real migration, make sure legacy passwords are handled
+        if 'password' in user:
+            if not bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+                # Fallback for plain text legacy (if any)
+                if user['password'] != password:
+                     return jsonify({'error': 'Invalid password'}), 401
     except Exception:
-        # Handle legacy accounts with plain text passwords
-        if user['password'] != password:
+         # Fallback for legacy
+         if user.get('password') != password:
             return jsonify({'error': 'Invalid password'}), 401
     
     # Delete user's posts
-    posts_data = load_json('posts.json', [])
-    posts_data = [post for post in posts_data if post.get('userId') != user_id]
-    save_json('posts.json', posts_data)
+    posts_col.delete_many({"userId": user_id})
     
-    # Remove user from conversations
-    conversations = load_json('conversations.json', [])
-    conversations = [conv for conv in conversations if user_id not in conv.get('users', [])]
-    save_json('conversations.json', conversations)
+    # Remove user from conversations (optional: or just mark as deleted user)
+    # Ideally, we pull the user from the 'users' array in conversations
+    conversations_col.update_many(
+        {"users": user_id},
+        {"$pull": {"users": user_id}}
+    )
     
     # Remove user from notifications
-    notifications = load_json('notifications.json', {})
-    # Remove notifications for this user
-    if user_id in notifications:
-        del notifications[user_id]
-    # Remove notifications from this user to others
-    for other_user_id, user_notifs in notifications.items():
-        notifications[other_user_id] = [notif for notif in user_notifs if notif.get('from') != user_id]
-    save_json('notifications.json', notifications)
+    notifications_col.delete_many({"userId": user_id})
+    notifications_col.delete_many({"from": user_id}) # Remove optional 'from' notifications
     
-    # Remove user from followers/following lists
-    for email, other_user in users.items():
-        if other_user.get('id') != user_id:
-            if 'followers' in other_user and user_id in other_user['followers']:
-                other_user['followers'].remove(user_id)
-            if 'following' in other_user and user_id in other_user['following']:
-                other_user['following'].remove(user_id)
-    
+    # Remove user from followers/following lists of OTHER users
+    # Remove user_id from everyone's following list (people following THIS user)
+    users_col.update_many(
+        {"following": user_id},
+        {"$pull": {"following": user_id}}
+    )
+    # Remove user_id from everyone's followers list (people THIS user follows)
+    users_col.update_many(
+         {"followers": user_id},
+        {"$pull": {"followers": user_id}}
+    )
+
     # Delete the user
-    del users[email_key]
-    save_json('users.json', users)
+    mongo_helpers.delete_user(user_id)
     
     return jsonify({'message': 'Account deleted successfully'})
 
 @app.route('/users/<user_id>/follow', methods=['POST'])
 def follow(user_id):
-    users = load_json('users.json', {})
     data = request.json or {}
-    follower = data.get('from')
-    if not follower:
+    follower_id = data.get('from')
+    
+    if not follower_id:
         return jsonify({'error': 'Missing follower'}), 400
-    f_email = next((k for k,v in users.items() if v.get('id') == follower), None)
-    t_email = next((k for k,v in users.items() if v.get('id') == user_id), None)
-    if not f_email or not t_email:
+    
+    target_user = mongo_helpers.get_user_by_id(user_id)
+    follower_user = mongo_helpers.get_user_by_id(follower_id)
+    
+    if not target_user or not follower_user:
         return jsonify({'error': 'User not found'}), 404
-    fu = users[f_email]; tu = users[t_email]
-    if user_id not in fu.get('following', []):
-        fu.setdefault('following', []).append(user_id)
-    if follower not in tu.get('followers', []):
-        tu.setdefault('followers', []).append(follower)
-    users[f_email] = fu; users[t_email] = tu
-    save_json('users.json', users)
+    
+    # Add user_id to follower_user's 'following' list
+    if user_id not in follower_user.get('following', []):
+        users_col.update_one(
+            {"id": follower_id},
+            {"$push": {"following": user_id}}
+        )
+
+    # Add follower_id to target_user's 'followers' list
+    if follower_id not in target_user.get('followers', []):
+        users_col.update_one(
+            {"id": user_id},
+            {"$push": {"followers": follower_id}}
+        )
+        
     return jsonify({'message':'followed'})
 
 @app.route('/users/<user_id>/unfollow', methods=['POST'])
 def unfollow(user_id):
-    users = load_json('users.json', {})
     data = request.json or {}
-    follower = data.get('from')
-    if not follower:
+    follower_id = data.get('from')
+    
+    if not follower_id:
         return jsonify({'error': 'Missing follower'}), 400
-    f_email = next((k for k,v in users.items() if v.get('id') == follower), None)
-    t_email = next((k for k,v in users.items() if v.get('id') == user_id), None)
-    if not f_email or not t_email:
+        
+    target_user = mongo_helpers.get_user_by_id(user_id)
+    follower_user = mongo_helpers.get_user_by_id(follower_id)
+    
+    if not target_user or not follower_user:
         return jsonify({'error': 'User not found'}), 404
-    fu = users[f_email]; tu = users[t_email]
-    if user_id in fu.get('following', []):
-        fu['following'].remove(user_id)
-    if follower in tu.get('followers', []):
-        tu['followers'].remove(follower)
-    users[f_email] = fu; users[t_email] = tu
-    save_json('users.json', users)
+        
+    # Remove user_id from follower_user's 'following' list
+    users_col.update_one(
+        {"id": follower_id},
+        {"$pull": {"following": user_id}}
+    )
+
+    # Remove follower_id from target_user's 'followers' list
+    users_col.update_one(
+        {"id": user_id},
+        {"$pull": {"followers": follower_id}}
+    )
+        
     return jsonify({'message':'unfollowed'})
 
 # ---------- Posts (public feed) ----------
 @app.route('/users', methods=['GET'])
 def get_users():
-    users = load_json('users.json', {})
-    users_list = []
-    for email, user_data in users.items():
-        users_list.append({
-            'id': user_data['id'],
-            'name': user_data['name'],
-            'email': user_data.get('email', ''), # Use .get() to avoid KeyError
-            'role': user_data.get('role', 'public'),
-            'avatar': user_data.get('avatar', '/default-avatar.png'),
-            'isVerified': user_data.get('isVerified', False)
+    users_list = mongo_helpers.get_all_users()
+    # Sanitize data
+    sanitized = []
+    for u in users_list:
+        sanitized.append({
+            'id': u['id'],
+            'name': u['name'],
+            'email': u.get('email', ''),
+            'role': u.get('role', 'public'),
+            'avatar': u.get('avatar', '/default-avatar.png'),
+            'isVerified': u.get('isVerified', False)
         })
-    return jsonify(users_list)
+    return jsonify(sanitized)
 
 @app.route('/posts', methods=['GET','POST'])
 def posts():
-    posts_data = load_json('posts.json', [])
     if request.method == 'POST':
         data = request.json or {}
         pid = str(uuid.uuid4())
@@ -574,43 +849,40 @@ def posts():
             'comments': [],
             'timestamp': data.get('timestamp') or datetime.utcnow().isoformat()+'Z'
         }
-        posts_data.append(post)
-        posts_data.sort(key=lambda p: p.get('timestamp',''), reverse=True)
-        save_json('posts.json', posts_data)
+        mongo_helpers.create_post(post)
         return jsonify(post), 201
     
     # For GET requests, include user information
-    users = load_json('users.json', {})
+    # Get all posts from MongoDB
+    posts_data = mongo_helpers.get_all_posts()
+    
+    # Get all users to map IDs to Names/Avatars
+    all_users = mongo_helpers.get_all_users()
+    users_map = {u['id']: u for u in all_users}
+    
     posts_with_users = []
     
     # Get current user's following list if provided
     current_user_id = request.args.get('userId')
     current_user_following = []
-    if current_user_id:
-        for email, user in users.items():
-            if user.get('id') == current_user_id:
-                current_user_following = user.get('following', [])
-                break
+    if current_user_id and current_user_id in users_map:
+        current_user_following = users_map[current_user_id].get('following', [])
     
     for post in posts_data:
         post_copy = post.copy()
-        # Find user by ID
-        user_info = None
-        for email, user in users.items():
-            if user.get('id') == post['userId']:
-                user_info = {
-                    'id': user['id'],
-                    'name': user.get('name', 'Unknown User'),
-                    'avatar': user.get('avatar', '/default-avatar.png'),
-                    'role': user.get('role', 'public'),
-                    'isVerified': user.get('isVerified', False)
-                }
-                break
         
-        if user_info:
-            post_copy['user'] = user_info
-        else:
+        # Enrich with user info
+        user = users_map.get(post['userId'])
+        if user:
             post_copy['user'] = {
+                'id': user['id'],
+                'name': user.get('name', 'Unknown User'),
+                'avatar': user.get('avatar', '/default-avatar.png'),
+                'role': user.get('role', 'public'),
+                'isVerified': user.get('isVerified', False)
+            }
+        else:
+             post_copy['user'] = {
                 'id': post['userId'],
                 'name': 'Unknown User',
                 'avatar': '/default-avatar.png',
@@ -620,19 +892,21 @@ def posts():
         # Mark if this post is from a followed user
         post_copy['isFromFollowed'] = post['userId'] in current_user_following
         
-        # Also add user info to comments
+        # Enrich comments with user names and avatars
         if 'comments' in post_copy:
             for comment in post_copy['comments']:
-                comment_user_info = None
-                for email, user in users.items():
-                    if user.get('id') == comment['userId']:
-                        comment_user_info = user.get('name', 'Unknown User')
-                        break
-                comment['userName'] = comment_user_info or 'Unknown User'
+                comment_user = users_map.get(comment['userId'])
+                if comment_user:
+                    comment['userName'] = comment_user.get('name', 'Unknown User')
+                    comment['userAvatar'] = comment_user.get('avatar', '/default-avatar.png')
+                    comment['userRole'] = comment_user.get('role', 'public')
+                    comment['userVerified'] = comment_user.get('isVerified', False)
+                else:
+                    comment['userName'] = 'Unknown User'
+                    comment['userAvatar'] = '/default-avatar.png'
         
         posts_with_users.append(post_copy)
     
-    # Sort: followed users' posts first, then by timestamp
     # Sort: followed users' posts first, then by timestamp (newest first)
     def sort_key(p):
         is_followed = p.get('isFromFollowed', False)
@@ -640,7 +914,7 @@ def posts():
         ts_val = 0
         if ts_str:
             try:
-                # Handle Z notation for python < 3.11 if needed, though fromisoformat usually needs +00:00
+                # Handle Z notation
                 ts = ts_str.replace('Z', '+00:00')
                 ts_val = datetime.fromisoformat(ts).timestamp()
             except ValueError:
@@ -652,138 +926,175 @@ def posts():
 
 @app.route('/posts/<post_id>/like', methods=['POST'])
 def like_post(post_id):
-    posts_data = load_json('posts.json', [])
     data = request.json or {}
     uid = data.get('userId')
-    post = next((p for p in posts_data if p['id'] == post_id), None)
-    if not post: 
+    
+    result = mongo_helpers.add_like_to_post(post_id, uid)
+    
+    if not result:
         return jsonify({'error':'Post not found'}), 404
-    if uid in post['likes']:
-        post['likes'].remove(uid)
-    else:
-        post['likes'].append(uid)
-    save_json('posts.json', posts_data)
-    return jsonify({'likes': len(post['likes']), 'liked': uid in post['likes']})
+        
+    # Get updated post to return like count
+    post = mongo_helpers.get_post_by_id(post_id)
+    likes_count = len(post.get('likes', []))
+    is_liked = uid in post.get('likes', [])
+    
+    return jsonify({'likes': likes_count, 'liked': is_liked})
 
 @app.route('/posts/<post_id>/comment', methods=['POST'])
 def comment_post(post_id):
-    posts_data = load_json('posts.json', [])
     data = request.json or {}
-    post = next((p for p in posts_data if p['id'] == post_id), None)
+    
+    post = mongo_helpers.get_post_by_id(post_id)
     if not post: 
         return jsonify({'error':'Post not found'}), 404
-    post['comments'].append({
+        
+    cid = str(uuid.uuid4())
+    comment_data = {
+        'id': cid,
         'userId': data['userId'],
         'content': data.get('content',''),
-        'timestamp': data.get('timestamp') or datetime.utcnow().isoformat()+'Z'
-    })
-    save_json('posts.json', posts_data)
-    notifs = load_json('notifications.json', {})
-    owner = post['userId']
-    notifs.setdefault(owner, []).append({'type':'comment','from': data['userId'],'postId': post_id})
-    save_json('notifications.json', notifs)
-    return jsonify({'message':'Commented'})
+        'timestamp': data.get('timestamp') or datetime.utcnow().isoformat()+'Z',
+        'parentId': data.get('parentId') # None if top-level
+    }
+    
+    mongo_helpers.add_comment_to_post(post_id, comment_data)
+    
+    # Create notification for post owner (if not self and top-level)
+    owner_id = post['userId']
+    if owner_id != data['userId']:
+        mongo_helpers.add_notification(owner_id, {
+            'type': 'comment',
+            'from': data['userId'],
+            'postId': post_id,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    # If reply, notify parent comment author
+    if data.get('parentId'):
+        parent_comment = next((c for c in post.get('comments',[]) if c.get('id') == data['parentId']), None)
+        if parent_comment and parent_comment['userId'] != data['userId']:
+             mongo_helpers.add_notification(parent_comment['userId'], {
+                'type': 'reply',
+                'from': data['userId'],
+                'postId': post_id,
+                'timestamp': datetime.now().isoformat()
+            })
 
-@app.route('/posts/<post_id>/comments/<comment_index>', methods=['DELETE'])
-def delete_comment(post_id, comment_index):
-    posts_data = load_json('posts.json', [])
+    return jsonify({'message':'Commented', 'comment': comment_data})
+
+@app.route('/posts/<post_id>/comments/<comment_id>', methods=['DELETE'])
+def delete_comment(post_id, comment_id):
     data = request.json or {}
-    post = next((p for p in posts_data if p['id'] == post_id), None)
+    post = mongo_helpers.get_post_by_id(post_id)
     if not post:
         return jsonify({'error': 'Post not found'}), 404
     
-    try:
-        comment_index = int(comment_index)
-        if comment_index < 0 or comment_index >= len(post.get('comments', [])):
-            return jsonify({'error': 'Comment not found'}), 404
-    except ValueError:
-        return jsonify({'error': 'Invalid comment index'}), 400
+    comments = post.get('comments', [])
+    comment = next((c for c in comments if c.get('id') == comment_id), None)
     
-    comment = post['comments'][comment_index]
-    if data.get('userId') != comment.get('userId'):
+    if not comment:
+         return jsonify({'error': 'Comment not found'}), 404
+    
+    # Allow deletion if Owner of Comment OR Owner of Post OR Admin
+    requester_id = data.get('userId')
+    requester = mongo_helpers.get_user_by_id(requester_id)
+    
+    is_admin = requester and requester.get('role') == 'admin'
+    is_post_owner = post.get('userId') == requester_id
+    is_comment_owner = comment.get('userId') == requester_id
+    
+    if not (is_comment_owner or is_post_owner or is_admin):
         return jsonify({'error': 'Forbidden'}), 403
     
-    post['comments'].pop(comment_index)
-    save_json('posts.json', posts_data)
+    mongo_helpers.delete_comment_from_post(post_id, comment_id)
     return jsonify({'message': 'Comment deleted'})
 
 @app.route('/posts/<post_id>', methods=['PUT','PATCH'])
 def update_post(post_id):
-    posts_data = load_json('posts.json', [])
     data = request.json or {}
-    post = next((p for p in posts_data if p['id'] == post_id), None)
+    post = mongo_helpers.get_post_by_id(post_id)
     if not post:
         return jsonify({'error': 'Post not found'}), 404
     if data.get('userId') != post.get('userId'):
         return jsonify({'error': 'Forbidden'}), 403
 
     # Update mutable fields
+    update_data = {}
     if 'content' in data:
-        post['content'] = data.get('content','')
+        update_data['content'] = data.get('content','')
     if 'media' in data and isinstance(data.get('media'), list):
-        post['media'] = data.get('media')
+        update_data['media'] = data.get('media')
     # Track update time
-    post['updatedAt'] = datetime.utcnow().isoformat()+'Z'
+    update_data['updatedAt'] = datetime.utcnow().isoformat()+'Z'
 
-    save_json('posts.json', posts_data)
-    return jsonify({'message':'Updated','post': post})
+    mongo_helpers.update_post(post_id, update_data)
+    
+    # Return updated post
+    updated_post = mongo_helpers.get_post_by_id(post_id)
+    return jsonify({'message':'Updated','post': updated_post})
 
 @app.route('/posts/<post_id>', methods=['DELETE'])
 def delete_post(post_id):
-    posts_data = load_json('posts.json', [])
     data = request.json or {}
-    post = next((p for p in posts_data if p['id'] == post_id), None)
+    post = mongo_helpers.get_post_by_id(post_id)
     if not post:
         return jsonify({'error': 'Post not found'}), 404
-    if data.get('userId') != post.get('userId'):
+        
+    requester_id = data.get('userId')
+    requester = mongo_helpers.get_user_by_id(requester_id)
+    
+    if not requester:
+         return jsonify({'error': 'User not found'}), 404
+
+    # Allow if owner OR admin
+    if requester_id != post.get('userId') and requester.get('role') != 'admin':
         return jsonify({'error': 'Forbidden'}), 403
 
-    posts_data = [p for p in posts_data if p['id'] != post_id]
-    save_json('posts.json', posts_data)
+    mongo_helpers.delete_post(post_id)
     return jsonify({'message': 'Deleted'})
 
 @app.route('/posts/<post_id>/report', methods=['POST'])
 def report_post(post_id):
-    reports = load_json('reports.json', [])
     data = request.json or {}
-    reports.append({
+    report_data = {
         'postId': post_id,
         'by': data.get('userId'),
         'reason': data.get('reason',''),
         'timestamp': data.get('timestamp') or datetime.utcnow().isoformat()+'Z'
-    })
-    save_json('reports.json', reports)
+    }
+    mongo_helpers.create_report(report_data)
     return jsonify({'message':'Reported'})
 
 # ---------- Notifications ----------
 @app.route('/notifications/<user_id>', methods=['GET'])
-def notifications(user_id):
-    notifs = load_json('notifications.json', {})
-    user_notifs = notifs.get(user_id, [])
-    
-    users = load_json('users.json', {})
-    def get_name(uid):
-        # Optimization: Create a lookup map if performance becomes an issue
-        for u in users.values():
-            if u['id'] == uid:
-                return u['name']
-        return uid
-
-    enriched = []
-    for n in user_notifs:
-        n_copy = n.copy()
-        n_copy['fromName'] = get_name(n.get('from'))
-        enriched.append(n_copy)
+def get_notifications(user_id):
+    try:
+        user_notifs = mongo_helpers.get_notifications_for_user(user_id)
         
-    return jsonify(enriched)
+        # We need user details to enrich "fromName"
+        # Ideally this should be an aggregation, but for now we loop
+        enriched = []
+        for n in user_notifs:
+            n_copy = n.copy()
+            if 'from' in n:
+                from_user = mongo_helpers.get_user_by_id(n['from'])
+                n_copy['fromName'] = from_user.get('name') if from_user else n['from']
+            enriched.append(n_copy)
+        
+        return jsonify(enriched)
+    except Exception as e:
+        print(f"Error loading notifications: {e}")
+        return jsonify([])
 
-@app.route('/notifications/<uid>', methods=['DELETE'])
-def clear_notifications(uid):
-    notifs = load_json('notifications.json', {})
-    if uid in notifs:
-        notifs[uid] = [] # Clear the list
-        save_json('notifications.json', notifs)
-    return jsonify({'message': 'Notifications cleared'})
+@app.route('/notifications/<user_id>', methods=['DELETE'])
+def clear_notifications(user_id):
+    try:
+        mongo_helpers.clear_notifications_for_user(user_id)
+        return jsonify({'message': 'Cleared'})
+    except Exception as e:
+        print(f"Error clearing notifications: {e}")
+        return jsonify({'message': 'Error clearing notifications'}), 500
 
 # ---------- Conversations / DMs ----------
 @app.route('/constitution', methods=['GET'])
@@ -834,60 +1145,75 @@ def get_article_by_id(article_id):
 
 @app.route('/conversations', methods=['GET','POST'])
 def conversations():
-    convs = load_json('conversations.json', [])
     if request.method == 'POST':
         data = request.json or {}
         users_pair = set(data.get('users', []))
         
-        # Check if both users exist and if the requester follows the target user
-        users = load_json('users.json', {})
-        requester_id = data['users'][0]
-        target_id = data['users'][1]
-        
-        # Find requester
-        requester = next((u for k, u in users.items() if u.get('id') == requester_id), None)
+        if len(users_pair) != 2:
+             return jsonify({'error': 'Conversation requires exactly 2 users'}), 400
+
+        # FIX: Use data['users'] directly to ensure order (Requester is index 0)
+        # Verify that the list contains unique IDs manually if needed, but set check above handles count
+        user_ids = data.get('users', [])
+        if len(user_ids) != 2: # Backup check
+             return jsonify({'error': 'Invalid users list'}), 400
+             
+        requester_id = user_ids[0]
+        target_id = user_ids[1]
+
+        # Check if both users exist
+        requester = mongo_helpers.get_user_by_id(requester_id)
+        target = mongo_helpers.get_user_by_id(target_id)
+
         if not requester:
             return jsonify({'error': 'Requester not found'}), 404
-        
-        # Find target
-        target = next((u for k, u in users.items() if u.get('id') == target_id), None)
         if not target:
             return jsonify({'error': 'Target user not found'}), 404
         
-        # Check if requester follows target
-        if target_id not in requester.get('following', []):
+        # Check if requester follows target (OR if requester is admin)
+        if target_id not in requester.get('following', []) and requester.get('role') != 'admin':
             return jsonify({'error': 'You must follow this user to send a DM'}), 403
         
-        for c in convs:
-            if set(c.get('users', [])) == users_pair:
-                return jsonify(c), 200
+        # Check if conversation already exists
+        # We need to find a convo with exactly these 2 users
+        # MongoDB query for arrays is tricky for "exact set", but we can query where both exist
+        existing_convs = list(mongo_helpers.conversations_col.find({
+            "users": {"$all": user_ids},
+            "$where": "this.users.length == 2"
+        }))
+        
+        if existing_convs:
+            # Return existing (serialize mongo id if needed, but 'id' field should be present)
+            existing = existing_convs[0]
+            if '_id' in existing: del existing['_id']
+            return jsonify(existing), 200
+
         cid = str(uuid.uuid4())
-        conv = {'id': cid, 'users': data['users'], 'status': 'accepted', 'messages': []}
-        convs.append(conv)
-        save_json('conversations.json', convs)
-        target = data['users'][1]
-        notifs = load_json('notifications.json', {})
-        notifs.setdefault(target, []).append({'type':'dm-request','from': data['users'][0], 'convId': cid})
-        save_json('notifications.json', notifs)
+        conv = {'id': cid, 'users': user_ids, 'status': 'accepted', 'messages': []}
+        mongo_helpers.create_conversation(conv)
+        
+        mongo_helpers.add_notification(target_id, {'type':'dm-request','from': requester_id, 'convId': cid})
+
         return jsonify(conv), 201
 
     uid = request.args.get('userId')
     if uid:
-        return jsonify([c for c in convs if uid in c.get('users', [])])
-    return jsonify(convs)
+        convs = mongo_helpers.get_conversations_for_user(uid)
+        return jsonify(convs)
+    
+    # Admin viewing all? Or just empty list
+    return jsonify([])
 
 @app.route('/conversations/<conv_id>', methods=['GET'])
 def get_conversation(conv_id):
-    convs = load_json('conversations.json', [])
-    conv = next((c for c in convs if c['id'] == conv_id), None)
+    conv = mongo_helpers.get_conversation_by_id(conv_id)
     if not conv: 
         return jsonify({'error':'Conversation not found'}), 404
+    
     # Also add participant user info to the conversation
-    users_data = load_json('users.json', {})
     conv_users = []
     for user_id in conv['users']:
-        # Find the user by ID from the users_data (which is a dictionary with email as key)
-        found_user = next((u for k, u in users_data.items() if u['id'] == user_id), None)
+        found_user = mongo_helpers.get_user_by_id(user_id)
         if found_user:
             conv_users.append({
                 'id': found_user['id'],
@@ -901,19 +1227,18 @@ def get_conversation(conv_id):
 
 @app.route('/conversations/<conv_id>/accept', methods=['POST'])
 def accept_conversation(conv_id):
-    convs = load_json('conversations.json', [])
-    conv = next((c for c in convs if c['id'] == conv_id), None)
+    conv = mongo_helpers.get_conversation_by_id(conv_id)
     if not conv: 
         return jsonify({'error':'Conversation not found'}), 404
-    conv['status'] = 'accepted'
-    save_json('conversations.json', convs)
+        
+    mongo_helpers.update_conversation(conv_id, {'status': 'accepted'})
     return jsonify({'message':'Accepted'})
 
 @app.route('/conversations/<conv_id>/message', methods=['POST'])
 def message(conv_id):
-    convs = load_json('conversations.json', [])
     data = request.json or {}
-    conv = next((c for c in convs if c['id'] == conv_id), None)
+    conv = mongo_helpers.get_conversation_by_id(conv_id)
+    
     if not conv: 
         return jsonify({'error':'Conversation not found'}), 404
     if conv.get('status') != 'accepted':
@@ -923,12 +1248,12 @@ def message(conv_id):
         'content': data.get('content',''),
         'timestamp': data.get('timestamp') or datetime.utcnow().isoformat()+'Z'
     }
-    conv.setdefault('messages', []).append(msg)
-    save_json('conversations.json', convs)
-    recipient = next(uid for uid in conv['users'] if uid != data['from'])
-    notifs = load_json('notifications.json', {})
-    notifs.setdefault(recipient, []).append({'type':'message', 'from': data['from'], 'convId': conv_id})
-    save_json('notifications.json', notifs)
+    mongo_helpers.add_message_to_conversation(conv_id, msg)
+    
+    recipient = next((uid for uid in conv['users'] if uid != data['from']), None)
+    if recipient:
+        mongo_helpers.add_notification(recipient, {'type':'message', 'from': data['from'], 'convId': conv_id})
+        
     return jsonify({'message':'Sent','msg': msg})
 
 # ---------- Admin ----------
@@ -941,9 +1266,7 @@ def admin_required(f):
         if not user_id:
             return jsonify({'error': 'Unauthorized: Missing User ID'}), 401
         
-        users = load_json('users.json', {})
-        # Find user by ID
-        user_entry = next((u for u in users.values() if u['id'] == user_id), None)
+        user_entry = mongo_helpers.get_user_by_id(user_id)
         
         if not user_entry:
             return jsonify({'error': 'Unauthorized: User not found'}), 401
@@ -957,10 +1280,10 @@ def admin_required(f):
 @app.route('/admin/users', methods=['GET'])
 @admin_required
 def admin_get_users():
-    users = load_json('users.json', {})
+    users_list = mongo_helpers.get_all_users()
     # Return list of all users, excluding passwords
     u_list = []
-    for u in users.values():
+    for u in users_list:
         print_u = u.copy()
         print_u.pop('password', None)
         u_list.append(print_u)
@@ -969,27 +1292,23 @@ def admin_get_users():
 @app.route('/admin/users/<uid>', methods=['DELETE'])
 @admin_required
 def admin_delete_user(uid):
-    users = load_json('users.json', {})
-    key_to_delete = next((k for k, v in users.items() if v['id'] == uid), None)
-    if not key_to_delete:
+    user = mongo_helpers.get_user_by_id(uid)
+    if not user:
         return jsonify({'error': 'User not found'}), 404
     
-    del users[key_to_delete]
-    save_json('users.json', users)
+    mongo_helpers.delete_user(uid)
     return jsonify({'message': 'User deleted'})
 
 @app.route('/admin/users/<uid>/verify', methods=['POST'])
 @admin_required
 def admin_verify_user(uid):
-    users = load_json('users.json', {})
-    key = next((k for k, v in users.items() if v['id'] == uid), None)
-    if not key:
+    user = mongo_helpers.get_user_by_id(uid)
+    if not user:
         return jsonify({'error': 'User not found'}), 404
     
     # Toggle verification
-    current = users[key].get('isVerified', False)
-    users[key]['isVerified'] = not current
-    save_json('users.json', users)
+    current = user.get('isVerified', False)
+    mongo_helpers.update_user(uid, {'isVerified': not current})
     return jsonify({'message': 'Status updated', 'isVerified': not current})
 
 # ---------- Verification Requests ----------
@@ -1050,11 +1369,9 @@ def admin_approve_request(rid):
     if not req:
         return jsonify({'error': 'Request not found'}), 404
         
-    users = load_json('users.json', {})
-    ukey = next((k for k, v in users.items() if v['id'] == req['userId']), None)
-    if ukey:
-        users[ukey]['isVerified'] = True
-        save_json('users.json', users)
+    user = mongo_helpers.get_user_by_id(req['userId'])
+    if user:
+        mongo_helpers.update_user(user['id'], {'isVerified': True})
     
     req['status'] = 'approved'
     save_json('verification_requests.json', reqs)
@@ -1072,7 +1389,562 @@ def admin_reject_request(rid):
     save_json('verification_requests.json', reqs)
     return jsonify({'message': 'Rejected'})
 
+# ---------- Paid Calling Feature ----------
+
+# Helper function: Check mutual follow
+def check_mutual_follow(user1_id, user2_id):
+    """Check if two users follow each other"""
+    try:
+        user1 = mongo_helpers.get_user_by_id(user1_id)
+        user2 = mongo_helpers.get_user_by_id(user2_id)
+        
+        if not user1 or not user2:
+            return False
+        
+        # Check mutual follow
+        user1_follows_user2 = user2_id in user1.get('following', [])
+        user2_follows_user1 = user1_id in user2.get('following', [])
+        
+        return user1_follows_user2 and user2_follows_user1
+    except Exception as e:
+        print(f"Error checking mutual follow: {e}")
+        return False
+
+# Old call endpoints removed - replaced with Call Request & Accept feature below
+
+# 5. Admin - Get call settings
+@app.route('/api/admin/call-settings', methods=['GET'])
+def get_call_settings():
+    """Get current call settings (Admin only)"""
+    try:
+        settings = call_settings_col.find_one({}, {'_id': 0})
+        
+        if not settings:
+            return jsonify({'error': 'Settings not found'}), 404
+        
+        # Convert datetime to ISO format
+        if 'updated_at' in settings:
+            settings['updated_at'] = settings['updated_at'].isoformat()
+        
+        return jsonify(settings)
+        
+    except Exception as e:
+        print(f"Error getting settings: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# 6. Admin - Update call settings
+@app.route('/api/admin/call-settings', methods=['PUT'])
+def update_call_settings():
+    """Update call settings (Admin only)"""
+    try:
+        data = request.json
+        admin_id = data.get('admin_id')  # In production, get from session/token
+        
+        update_data = {}
+        
+        if 'call_price' in data:
+            update_data['call_price'] = int(data['call_price'])
+        
+        if 'call_duration' in data:
+            update_data['call_duration'] = int(data['call_duration'])
+        
+        if 'feature_enabled' in data:
+            update_data['feature_enabled'] = bool(data['feature_enabled'])
+        
+        if not update_data:
+            return jsonify({'error': 'No valid fields to update'}), 400
+        
+        update_data['updated_at'] = datetime.now()
+        update_data['updated_by'] = admin_id or 'admin'
+        
+        # Update settings
+        result = call_settings_col.update_one(
+            {},
+            {"$set": update_data},
+            upsert=True
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Settings updated successfully',
+            'updated_fields': list(update_data.keys())
+        })
+        
+    except Exception as e:
+        print(f"Error updating settings: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# 7. Admin - Get all call history
+@app.route('/api/admin/call-history', methods=['GET'])
+def admin_call_history():
+    """Get all call history with filters (Admin only)"""
+    try:
+        # Get query parameters
+        limit = request.args.get('limit', 100, type=int)
+        status = request.args.get('status')  # completed, active, cancelled
+        
+        # Build query
+        query = {}
+        if status:
+            query['status'] = status
+        
+        # Fetch calls
+        calls = list(call_history_col.find(
+            query,
+            {'_id': 0}
+        ).sort("started_at", -1).limit(limit))
+        
+        # Convert datetime to ISO format
+        for call in calls:
+            if 'started_at' in call:
+                call['started_at'] = call['started_at'].isoformat()
+            if 'ended_at' in call and call['ended_at']:
+                call['ended_at'] = call['ended_at'].isoformat()
+        
+        # Calculate statistics
+        total_calls = call_history_col.count_documents({})
+        total_revenue = sum(call.get('amount', 0) for call in calls)
+        
+        return jsonify({
+            'success': True,
+            'total_calls': total_calls,
+            'total_revenue': total_revenue,
+            'count': len(calls),
+            'history': calls
+        })
+        
+    except Exception as e:
+        print(f"Error getting admin call history: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# ---------- Mock Payment (For Demo) ----------
+@app.route('/api/payment/mock', methods=['POST'])
+def mock_payment():
+    """Mock payment endpoint - always succeeds for demo purposes"""
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        amount = data.get('amount', 20)
+        purpose = data.get('purpose', 'call_payment')
+        
+        # Generate mock transaction ID
+        transaction_id = f"mock_txn_{uuid.uuid4()}"
+        
+        # Always return success
+        return jsonify({
+            'success': True,
+            'message': 'Mock payment successful',
+            'transaction_id': transaction_id,
+            'amount': amount,
+            'purpose': purpose,
+            'timestamp': datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error in mock payment: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# Helper: Check mutual follow
+# Removed duplicate check_mutual_follow function
+# It was defined twice in the original file
+
+
+# 1. Check Eligibility
+@app.route('/api/call/check-eligibility', methods=['POST'])
+def check_call_eligibility():
+    """Check if user can send call request"""
+    try:
+        data = request.json
+        caller_id = data.get('caller_id')
+        receiver_id = data.get('receiver_id')
+        
+        if not caller_id or not receiver_id:
+            return jsonify({'eligible': False, 'reason': 'Missing user IDs'}), 400
+        
+        # Check mutual follow
+        mutual_follow = check_mutual_follow(caller_id, receiver_id)
+        if not mutual_follow:
+            return jsonify({
+                'eligible': False,
+                'reason': 'Both users must follow each other to enable calling',
+                'mutual_follow': False
+            })
+        
+        # Get call settings
+        settings = call_settings_col.find_one()
+        if not settings or not settings.get('feature_enabled', True):
+            return jsonify({'eligible': False, 'reason': 'Calling feature is currently disabled'})
+        
+        call_price = settings.get('call_price', 20)
+        call_duration = settings.get('call_duration', 10)
+        
+        # Check wallet
+        if caller_wallet < call_price:
+            return jsonify({
+                'eligible': False,
+                'reason': f'Insufficient balance. Required: ₹{call_price}, Available: ₹{caller_wallet}',
+                'wallet_balance': caller_wallet,
+                'call_price': call_price
+            })
+        
+        return jsonify({
+            'eligible': True,
+            'mutual_follow': True,
+            'wallet_balance': caller_wallet,
+            'call_price': call_price,
+            'call_duration': call_duration
+        })
+        
+    except Exception as e:
+        print(f"Error checking eligibility: {e}")
+        return jsonify({'eligible': False, 'reason': 'Server error'}), 500
+
+# 2. Create Call Request
+@app.route('/api/call/request', methods=['POST'])
+def create_call_request():
+    """Create a new call request"""
+    try:
+        data = request.json
+        caller_id = data.get('caller_id')
+        receiver_id = data.get('receiver_id')
+        
+        # Check mutual follow
+        if not check_mutual_follow(caller_id, receiver_id):
+            return jsonify({'success': False, 'error': 'Mutual follow required'}), 400
+        
+        # Get settings
+        settings = call_settings_col.find_one()
+        call_price = settings.get('call_price', 20)
+        call_duration = settings.get('call_duration', 10)
+        
+        # Check for existing pending request
+        existing = call_requests_col.find_one({
+            'caller_id': caller_id,
+            'receiver_id': receiver_id,
+            'status': 'pending'
+        })
+        
+        if existing:
+            return jsonify({'success': False, 'error': 'Pending request already exists'}), 400
+        
+        # Create request
+        request_id = str(uuid.uuid4())
+        call_request = {
+            'request_id': request_id,
+            'caller_id': caller_id,
+            'receiver_id': receiver_id,
+            'status': 'pending',
+            'amount': call_price,
+            'duration_minutes': call_duration,
+            'created_at': datetime.utcnow(),
+            'responded_at': None,
+            'started_at': None,
+            'ended_at': None,
+            'actual_duration': None,
+            'payment_status': 'pending'
+        }
+        
+        call_requests_col.insert_one(call_request)
+        
+        return jsonify({
+            'success': True,
+            'request_id': request_id,
+            'message': 'Call request sent',
+            'status': 'pending'
+        })
+        
+    except Exception as e:
+        print(f"Error creating call request: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 3. Get Incoming Requests
+@app.route('/api/call/incoming/<user_id>', methods=['GET'])
+def get_incoming_requests(user_id):
+    """Get pending incoming call requests"""
+    try:
+        requests = list(call_requests_col.find({
+            'receiver_id': user_id,
+            'status': 'pending'
+        }, {'_id': 0}).sort('created_at', -1))
+        
+        # Add caller info
+        users = load_json('users.json', {})
+        for req in requests:
+            for email, user_data in users.items():
+                if user_data.get('id') == req['caller_id']:
+                    req['caller_info'] = {
+                        'name': user_data.get('name'),
+                        'avatar': user_data.get('avatar'),
+                        'role': user_data.get('role'),
+                        'isVerified': user_data.get('isVerified', False)
+                    }
+                    break
+        
+        return jsonify({'success': True, 'requests': requests, 'count': len(requests)})
+        
+    except Exception as e:
+        print(f"Error getting incoming requests: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 4. Get Outgoing Requests
+@app.route('/api/call/outgoing/<user_id>', methods=['GET'])
+def get_outgoing_requests(user_id):
+    """Get pending outgoing call requests"""
+    try:
+        requests = list(call_requests_col.find({
+            'caller_id': user_id,
+            'status': 'pending'
+        }, {'_id': 0}).sort('created_at', -1))
+        
+        # Add receiver info
+        users = load_json('users.json', {})
+        for req in requests:
+            for email, user_data in users.items():
+                if user_data.get('id') == req['receiver_id']:
+                    req['receiver_info'] = {
+                        'name': user_data.get('name'),
+                        'avatar': user_data.get('avatar'),
+                        'role': user_data.get('role'),
+                        'isVerified': user_data.get('isVerified', False)
+                    }
+                    break
+        
+        return jsonify({'success': True, 'requests': requests, 'count': len(requests)})
+        
+    except Exception as e:
+        print(f"Error getting outgoing requests: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 5. Accept Call Request
+@app.route('/api/call/accept/<request_id>', methods=['POST'])
+def accept_call_request(request_id):
+    """Accept incoming call request"""
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        
+        call_request = call_requests_col.find_one({'request_id': request_id})
+        
+        if not call_request:
+            return jsonify({'success': False, 'error': 'Request not found'}), 404
+        
+        if call_request['receiver_id'] != user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+        if call_request['status'] != 'pending':
+            return jsonify({'success': False, 'error': f'Request is already {call_request["status"]}'}), 400
+        
+        # Update request to accepted (payment already handled via mock payment)
+        start_time = datetime.utcnow()
+        end_time = start_time + timedelta(minutes=call_request['duration_minutes'])
+        
+        call_requests_col.update_one(
+            {'request_id': request_id},
+            {
+                '$set': {
+                    'status': 'accepted',
+                    'responded_at': start_time,
+                    'started_at': start_time,
+                    'payment_status': 'completed'
+                }
+            }
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Call accepted',
+            'status': 'accepted',
+            'call_session': {
+                'request_id': request_id,
+                'start_time': start_time.isoformat(),
+                'end_time': end_time.isoformat(),
+                'duration_minutes': call_request['duration_minutes']
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error accepting call: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 6. Reject Call Request
+@app.route('/api/call/reject/<request_id>', methods=['POST'])
+def reject_call_request(request_id):
+    """Reject incoming call request"""
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        
+        call_request = call_requests_col.find_one({'request_id': request_id})
+        
+        if not call_request:
+            return jsonify({'success': False, 'error': 'Request not found'}), 404
+        
+        if call_request['receiver_id'] != user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+        if call_request['status'] != 'pending':
+            return jsonify({'success': False, 'error': f'Request is {call_request["status"]}'}), 400
+        
+        call_requests_col.update_one(
+            {'request_id': request_id},
+            {'$set': {'status': 'rejected', 'responded_at': datetime.utcnow()}}
+        )
+        
+        return jsonify({'success': True, 'message': 'Call rejected'})
+        
+    except Exception as e:
+        print(f"Error rejecting call: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 7. Cancel Call Request
+@app.route('/api/call/cancel/<request_id>', methods=['POST'])
+def cancel_call_request(request_id):
+    """Cancel outgoing call request"""
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        
+        call_request = call_requests_col.find_one({'request_id': request_id})
+        
+        if not call_request:
+            return jsonify({'success': False, 'error': 'Request not found'}), 404
+        
+        if call_request['caller_id'] != user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        
+        if call_request['status'] != 'pending':
+            return jsonify({'success': False, 'error': 'Cannot cancel'}), 400
+        
+        call_requests_col.update_one(
+            {'request_id': request_id},
+            {'$set': {'status': 'cancelled', 'responded_at': datetime.utcnow()}}
+        )
+        
+        return jsonify({'success': True, 'message': 'Request cancelled'})
+        
+    except Exception as e:
+        print(f"Error cancelling: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 8. End Call
+@app.route('/api/call/end', methods=['POST'])
+def end_call():
+    """End active call session"""
+    try:
+        data = request.json
+        request_id = data.get('request_id')
+        
+        call_request = call_requests_col.find_one({'request_id': request_id})
+        
+        if not call_request or call_request['status'] != 'accepted':
+            return jsonify({'success': False, 'error': 'No active call'}), 400
+        
+        started_at = call_request['started_at']
+        ended_at = datetime.utcnow()
+        actual_duration = (ended_at - started_at).total_seconds() / 60
+        
+        call_requests_col.update_one(
+            {'request_id': request_id},
+            {
+                '$set': {
+                    'status': 'ended',
+                    'ended_at': ended_at,
+                    'actual_duration': round(actual_duration, 2)
+                }
+            }
+        )
+        
+        # Save to history
+        call_history_col.insert_one({
+            'caller_id': call_request['caller_id'],
+            'receiver_id': call_request['receiver_id'],
+            'amount': call_request['amount'],
+            'duration_minutes': call_request['duration_minutes'],
+            'actual_duration': round(actual_duration, 2),
+            'status': 'completed',
+            'started_at': started_at,
+            'ended_at': ended_at,
+            'payment_status': call_request['payment_status']
+        })
+        
+        return jsonify({
+            'success': True,
+            'actual_duration': round(actual_duration, 2),
+            'ended_at': ended_at.isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error ending call: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 9. Get Active Call
+@app.route('/api/call/active/<user_id>', methods=['GET'])
+def get_active_call(user_id):
+    """Get active call session"""
+    try:
+        active_call = call_requests_col.find_one({
+            '$or': [{'caller_id': user_id}, {'receiver_id': user_id}],
+            'status': 'accepted'
+        }, {'_id': 0})
+        
+        if not active_call:
+            return jsonify({'success': True, 'active_call': None})
+        
+        started_at = active_call['started_at']
+        duration_minutes = active_call['duration_minutes']
+        end_time = started_at + timedelta(minutes=duration_minutes)
+        remaining_seconds = (end_time - datetime.utcnow()).total_seconds()
+        
+        if remaining_seconds <= 0:
+            # Auto-end
+            end_call()
+            return jsonify({'success': True, 'active_call': None, 'auto_ended': True})
+        
+        # Add other user info
+        users = load_json('users.json', {})
+        other_user_id = active_call['receiver_id'] if active_call['caller_id'] == user_id else active_call['caller_id']
+        
+        for email, user_data in users.items():
+            if user_data.get('id') == other_user_id:
+                active_call['other_user'] = {
+                    'name': user_data.get('name'),
+                    'avatar': user_data.get('avatar'),
+                    'role': user_data.get('role')
+                }
+                break
+        
+        active_call['remaining_seconds'] = int(remaining_seconds)
+        active_call['end_time'] = end_time.isoformat()
+        
+        return jsonify({'success': True, 'active_call': active_call})
+        
+    except Exception as e:
+        print(f"Error getting active call: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 10. Get Call History (Keep existing)
+@app.route('/api/call/history/<user_id>', methods=['GET'])
+def get_call_history(user_id):
+    """Get call history for user"""
+    try:
+        limit = int(request.args.get('limit', 50))
+        
+        history = list(call_history_col.find({
+            '$or': [{'caller_id': user_id}, {'receiver_id': user_id}]
+        }, {'_id': 0}).sort('started_at', -1).limit(limit))
+        
+        return jsonify({'success': True, 'history': history, 'count': len(history)})
+        
+    except Exception as e:
+        print(f"Error getting call history: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
-    # Run on all interfaces so your frontend can hit it consistently
     app.run(host='0.0.0.0', port=5000, debug=True)
+
+
 

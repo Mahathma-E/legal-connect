@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import UserListModal from './UserListModal';
 import VerificationRequestModal from './VerificationRequestModal';
+import CallButton from './CallButton';
 import { FaCheckCircle } from 'react-icons/fa';
 
 const Profile = ({ user, setUser }) => {
@@ -249,6 +250,15 @@ const Profile = ({ user, setUser }) => {
               <button className="btn secondary" onClick={startDM}>
                 Message
               </button>
+              {/* Call Button - Only for Advocate users */}
+              {profile.role === 'Advocate' && (
+                <CallButton
+                  currentUserId={user.id}
+                  targetUserId={profile.id}
+                  targetUserName={profile.name}
+                  targetUserRole={profile.role}
+                />
+              )}
             </>
           )}
 

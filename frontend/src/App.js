@@ -13,6 +13,9 @@ import './App.css';
 import ChatPage from './components/ChatPage';
 import Constitution from './components/Constitution';
 import AdminDashboard from './components/AdminDashboard';
+import VerifyEmail from './components/VerifyEmail';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
 
 const App = () => {
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
@@ -35,6 +38,9 @@ const App = () => {
           <Route path="/" element={user ? <Navigate to="/home" /> : <Login setUser={(u) => { setUser(u); localStorage.setItem('user', JSON.stringify(u)); }} />} />
           <Route path="/register-public" element={<RegisterPublic />} />
           <Route path="/register-lawyer" element={<RegisterLawyer />} />
+          <Route path="/verify-email/:token" element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route path="/home" element={user ? <Home user={user} showDMs={showDMs} /> : <Navigate to="/" />} />
           <Route path="/profile/:id" element={user ? <Profile user={user} setUser={setUser} /> : <Navigate to="/" />} />
           <Route path="/dm/:convId" element={user ? <DM user={user} /> : <Navigate to="/" />} />

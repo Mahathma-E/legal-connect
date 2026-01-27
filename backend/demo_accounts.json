@@ -1,0 +1,15 @@
+{
+  "public_user": {
+    "name": "John Public",
+    "email": "john.public@demo.com",
+    "password": "demo123",
+    "id": "69b41f73-2bbb-40ed-8899-8a098835594e"
+  },
+  "advocate_user": {
+    "name": "Sarah Advocate",
+    "email": "sarah.advocate@demo.com",
+    "password": "demo123",
+    "id": "f5c161c5-88c3-4672-bde4-ad0eba9874f9",
+    "bar_code": "BAR12345"
+  }
+}

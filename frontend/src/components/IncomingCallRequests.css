@@ -1,0 +1,140 @@
+.incoming-requests-container {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.incoming-requests-container h3 {
+    color: var(--color-primary);
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+}
+
+.requests-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.call-request-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 15px;
+    transition: all 0.3s ease;
+}
+
+.call-request-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.request-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.caller-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid var(--color-primary);
+    object-fit: cover;
+}
+
+.caller-info h4 {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 1.1rem;
+}
+
+.caller-role {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.request-details {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.request-details p {
+    margin: 5px 0;
+    color: var(--text-main);
+}
+
+.request-time {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 8px !important;
+}
+
+.request-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.btn-reject,
+.btn-accept {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+}
+
+.btn-reject {
+    background: linear-gradient(135deg, #ff4757, #e84118);
+    color: white;
+}
+
+.btn-reject:hover {
+    background: linear-gradient(135deg, #e84118, #c23616);
+    transform: scale(1.05);
+}
+
+.btn-accept {
+    background: linear-gradient(135deg, #00d2ff, #3a7bd5);
+    color: white;
+}
+
+.btn-accept:hover {
+    background: linear-gradient(135deg, #3a7bd5, #2c5aa0);
+    transform: scale(1.05);
+}
+
+.incoming-requests-loading {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+}
+
+/* Notification badge animation */
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.incoming-requests-container h3 {
+    animation: pulse 2s infinite;
+}
