@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
+import Register from './components/Register';
 import RegisterPublic from './components/RegisterPublic';
 import RegisterLawyer from './components/RegisterLawyer';
 import Home from './components/Home';
@@ -36,6 +37,8 @@ const App = () => {
         <Header darkMode={darkMode} setDarkMode={setDarkMode} user={user} setUser={setUser} showDMs={showDMs} setShowDMs={setShowDMs} />
         <Routes>
           <Route path="/" element={user ? <Navigate to="/home" /> : <Login setUser={(u) => { setUser(u); localStorage.setItem('user', JSON.stringify(u)); }} />} />
+          <Route path="/login" element={user ? <Navigate to="/home" /> : <Login setUser={(u) => { setUser(u); localStorage.setItem('user', JSON.stringify(u)); }} />} />
+          <Route path="/register" element={<Register setUser={(u) => { setUser(u); localStorage.setItem('user', JSON.stringify(u)); }} />} />
           <Route path="/register-public" element={<RegisterPublic />} />
           <Route path="/register-lawyer" element={<RegisterLawyer />} />
           <Route path="/verify-email/:token" element={<VerifyEmail />} />

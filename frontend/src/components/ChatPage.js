@@ -78,31 +78,42 @@ const ChatPage = () => {
                 }),
             });
 
-            if (!response.body) {
-                throw new Error('ReadableStream not supported in this browser.');
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let botText = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                botText += chunk;
-
-                // Update the last message (bot's message) with new chunk
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const data = await response.json();
                 setMessages(prev => {
                     const newMessages = [...prev];
-                    // We assume the bot message is the last one we added
                     const lastMsg = newMessages[newMessages.length - 1];
                     if (lastMsg.from === 'bot') {
-                        lastMsg.text = botText;
+                        lastMsg.text = data.reply || data.error || 'Error: No reply in JSON';
                     }
                     return newMessages;
                 });
+            } else {
+                if (!response.body) {
+                    throw new Error('ReadableStream not supported in this browser.');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let botText = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    botText += chunk;
+
+                    setMessages(prev => {
+                        const newMessages = [...prev];
+                        const lastMsg = newMessages[newMessages.length - 1];
+                        if (lastMsg.from === 'bot') {
+                            lastMsg.text = botText;
+                        }
+                        return newMessages;
+                    });
+                }
             }
 
         } catch (err) {

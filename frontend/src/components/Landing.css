@@ -1,0 +1,321 @@
+/* Landing.css */
+
+.landing-container {
+    display: flex;
+    height: 100vh;
+    /* Changed from min-height to height to force fit */
+    background-color: black;
+    color: white;
+    font-family: 'Outfit', sans-serif;
+    overflow: hidden;
+    /* Prevent scrolling on desktop */
+    position: relative;
+}
+
+/* Top Right Branding */
+.landing-top-brand {
+    position: absolute;
+    top: 30px;
+    right: 40px;
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 700;
+    z-index: 10;
+    letter-spacing: 0.5px;
+}
+
+/* Left Side - Image */
+.landing-image-section {
+    flex: 60%;
+    /* Adjusted ratio */
+    position: relative;
+    background-image: url('https://images.unsplash.com/photo-1589829085413-56de8ae18c73?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80');
+    background-size: cover;
+    background-position: center;
+}
+
+.landing-image-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* Right Side - Content */
+.landing-content-section {
+    flex: 40%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 40px 60px;
+    /* Reduced vertical padding */
+    max-width: 700px;
+    overflow-y: auto;
+    /* Allow scroll only in content if really needed on short screens */
+}
+
+.landing-logo {
+    font-size: 2.5rem;
+    /* Slightly smaller to fit better */
+    margin-bottom: 1.5rem;
+}
+
+.landing-title {
+    font-size: 3.5rem;
+    /* Adjusted for fit */
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 2rem;
+    letter-spacing: -1px;
+}
+
+.landing-subtitle {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 2rem;
+}
+
+/* Buttons */
+.landing-btn {
+    width: 100%;
+    max-width: 380px;
+    padding: 12px 20px;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 1rem;
+    border: none;
+}
+
+.btn-google {
+    background-color: white;
+    color: black;
+}
+
+.btn-google:hover {
+    filter: brightness(0.9);
+}
+
+.btn-create {
+    background-color: #1d9bf0;
+    color: white;
+}
+
+.btn-create:hover {
+    background-color: #1a8cd8;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #1d9bf0;
+    /* Match link color */
+}
+
+.btn-outline:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    max-width: 380px;
+    margin: 10px 0 20px 0;
+    color: #536471;
+    font-size: 0.9rem;
+}
+
+.divider::before,
+.divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: #333;
+}
+
+.divider span {
+    padding: 0 10px;
+}
+
+.terms-text {
+    font-size: 0.75rem;
+    color: #536471;
+    max-width: 380px;
+    margin-bottom: 2rem;
+    line-height: 1.4;
+}
+
+.terms-text a {
+    color: #1d9bf0;
+    text-decoration: none;
+}
+
+.signin-section h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(91, 112, 131, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: black;
+    border: 1px solid #333;
+    border-radius: 16px;
+    padding: 30px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.close-modal {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.modal-header-logo {
+    text-align: center;
+    margin-bottom: 2rem;
+    font-size: 2rem;
+}
+
+.modal-step-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+/* Form Styles */
+.form-input {
+    width: 100%;
+    padding: 16px;
+    background: black;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: white;
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+    transition: border-color 0.2s;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #1d9bf0;
+}
+
+.role-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.role-card {
+    padding: 20px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.role-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.role-card.selected {
+    border-color: #1d9bf0;
+    background: rgba(29, 155, 240, 0.1);
+}
+
+.role-info h4 {
+    margin: 0 0 5px 0;
+    font-size: 1.1rem;
+}
+
+.role-info p {
+    margin: 0;
+    color: #71767b;
+    font-size: 0.9rem;
+}
+
+.step-actions {
+    margin-top: 2rem;
+}
+
+.action-btn {
+    width: 100%;
+    padding: 15px;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+}
+
+.primary-btn {
+    background-color: white;
+    color: black;
+}
+
+.primary-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 800px) {
+    .landing-container {
+        height: auto;
+        /* Allow scroll on mobile */
+        flex-direction: column;
+        overflow: auto;
+    }
+
+    .landing-image-section {
+        display: none;
+    }
+
+    .landing-content-section {
+        padding: 30px;
+        align-items: flex-start;
+        height: min-content;
+        /* Let content determine height */
+    }
+
+    .landing-top-brand {
+        top: 20px;
+        right: 20px;
+    }
+}

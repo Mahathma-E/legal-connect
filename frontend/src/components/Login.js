@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
-import { auth } from '../firebase';
+import { signInWithPopup, signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { auth, googleProvider } from '../firebase';
+import { FaGoogle } from 'react-icons/fa';
 
 const Login = ({ setUser }) => {
   const [email, setEmail] = useState('');
@@ -95,6 +96,30 @@ const Login = ({ setUser }) => {
     }
   };
 
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      const token = await user.getIdToken();
+
+      const res = await axios.post('/login', { firebaseToken: token });
+      setUser(res.data.user);
+      navigate(res.data.user.role === 'admin' ? '/admin' : '/home');
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/user-not-found' || (err.response && err.response.status === 404)) {
+        setError('Account not found. Please register first.');
+      } else {
+        setError('Google Sign In failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-container">
       <div className="glass-card auth-box">
@@ -135,6 +160,22 @@ const Login = ({ setUser }) => {
           </div>
         )}
 
+        <button
+          onClick={handleGoogleLogin}
+          className="btn"
+          disabled={loading}
+          style={{
+            background: 'white', color: '#333', width: '100%', marginBottom: '20px',
+            display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px'
+          }}
+        >
+          <FaGoogle color="#DB4437" /> Sign in with Google
+        </button>
+
+        <div className="divider" style={{ textAlign: 'center', marginBottom: '20px', color: 'var(--text-muted)' }}>
+          <span>OR</span>
+        </div>
+
         <form onSubmit={handleSubmit}>
           <input
             type="email"
@@ -166,11 +207,7 @@ const Login = ({ setUser }) => {
         </div>
 
         <p style={{ textAlign: 'center', marginTop: '20px' }}>
-          New here? <br />
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '10px' }}>
-            <Link to="/register-public" className="btn secondary" style={{ fontSize: '0.8rem' }}>Public Sign Up</Link>
-            <Link to="/register-lawyer" className="btn secondary" style={{ fontSize: '0.8rem' }}>Lawyer Sign Up</Link>
-          </div>
+          New here? <Link to="/register" style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>Create an account</Link>
         </p>
       </div>
     </div>
