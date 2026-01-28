@@ -4,6 +4,7 @@ import axios from 'axios';
 import UserListModal from './UserListModal';
 import VerificationRequestModal from './VerificationRequestModal';
 import CallButton from './CallButton';
+import Post from './Post';
 import { FaCheckCircle } from 'react-icons/fa';
 
 const Profile = ({ user, setUser }) => {
@@ -25,6 +26,17 @@ const Profile = ({ user, setUser }) => {
   // Verification State
   const [reqStatus, setReqStatus] = useState('none');
   const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [posts, setPosts] = useState([]);
+
+  // Fetch user posts
+  const fetchPosts = async () => {
+    try {
+      const { data } = await axios.get(`/posts?authorId=${id}`);
+      setPosts(data || []);
+    } catch (err) {
+      console.error("Error fetching user posts:", err);
+    }
+  };
 
   // Fetch profile data
   const fetchProfile = async () => {
@@ -54,6 +66,7 @@ const Profile = ({ user, setUser }) => {
 
   useEffect(() => {
     fetchProfile();
+    fetchPosts();
   }, [id]);
 
   // Handle follow/unfollow
@@ -289,6 +302,19 @@ const Profile = ({ user, setUser }) => {
                 Upload your Bar Council ID to get verified.
               </p>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* User Posts Section */}
+      <h3 style={{ margin: '30px 0 20px', paddingLeft: '10px', borderLeft: '4px solid var(--color-primary)' }}>Posts</h3>
+      <div className="feed">
+        {posts.map(post => (
+          <Post key={post.id} post={post} user={user} refresh={fetchPosts} />
+        ))}
+        {posts.length === 0 && (
+          <div className="glass-card" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+            <p>No posts yet.</p>
           </div>
         )}
       </div>

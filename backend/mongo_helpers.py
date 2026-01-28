@@ -57,6 +57,10 @@ def get_all_posts():
     """Get all posts from MongoDB"""
     return list(posts_col.find({}, {'_id': 0}).sort("timestamp", -1))
 
+def get_posts_by_userid(user_id):
+    """Get posts by a specific user from MongoDB"""
+    return list(posts_col.find({"userId": user_id}, {'_id': 0}).sort("timestamp", -1))
+
 def get_post_by_id(post_id):
     """Get post by ID"""
     return posts_col.find_one({"id": post_id}, {'_id': 0})

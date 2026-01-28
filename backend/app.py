@@ -853,8 +853,14 @@ def posts():
         return jsonify(post), 201
     
     # For GET requests, include user information
-    # Get all posts from MongoDB
-    posts_data = mongo_helpers.get_all_posts()
+    # Check for author filter
+    author_id = request.args.get('authorId')
+    
+    if author_id:
+        posts_data = mongo_helpers.get_posts_by_userid(author_id)
+    else:
+        # Get all posts from MongoDB
+        posts_data = mongo_helpers.get_all_posts()
     
     # Get all users to map IDs to Names/Avatars
     all_users = mongo_helpers.get_all_users()
