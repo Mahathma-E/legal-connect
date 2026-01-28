@@ -69,16 +69,17 @@ const Header = ({ darkMode, setDarkMode, user, setUser, showDMs, setShowDMs }) =
     navigate('/');
   };
 
-  const toggleNotifs = async () => {
-    if (!showNotifs && notifications.length > 0) {
-      try {
-        await axios.delete(`/notifications/${user.id}`);
-        setNotifications([]);
-      } catch (e) {
-        console.error(e);
-      }
-    }
+  const toggleNotifs = () => {
     setShowNotifs(!showNotifs);
+  };
+
+  const handleClearNotifications = async () => {
+    try {
+      await axios.delete(`/notifications/${user.id}`);
+      setNotifications([]);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
@@ -186,7 +187,23 @@ const Header = ({ darkMode, setDarkMode, user, setUser, showDMs, setShowDMs }) =
 
               {showNotifs && (
                 <div className="dropdown-panel">
-                  <h4>Notifications</h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <h4 style={{ margin: 0 }}>Notifications</h4>
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={handleClearNotifications}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--color-primary)',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
                   {!notifications.length && <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No new notifications</p>}
                   {notifications.map((n, i) => (
                     <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
